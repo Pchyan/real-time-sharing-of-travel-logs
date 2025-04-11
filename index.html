@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旅行記錄</title>
+    <!-- Pico.css -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <!-- 自訂樣式 -->
+    <link rel="stylesheet" href="styles/main.css">
+    <!-- 未來可以加入 CSS 樣式表連結 -->
+    <!-- <link rel="stylesheet" href="styles/main.css"> -->
+</head>
+<body>
+    <h1>旅行記錄應用程式</h1>
+
+    <!-- 頁面通知區域 -->
+    <div id="notification-area" role="alert" style="display: none; margin-bottom: 1rem;"></div>
+
+    <!-- 行程管理 -->
+    <section id="trip-management">
+        <h2>行程管理</h2>
+        <div>
+            <label for="trip-name">新行程名稱:</label>
+            <input type="text" id="trip-name" placeholder="例如：東京五日遊">
+            <button id="create-trip-btn">建立新行程</button>
+        </div>
+        <br>
+        <div>
+            <label for="trip-id-input">載入行程 ID:</label>
+            <input type="text" id="trip-id-input" placeholder="貼上行程 ID">
+            <button id="load-trip-btn">載入行程</button>
+            <span id="loading-indicator" style="margin-left: 10px; display: none;">載入中...</span>
+        </div>
+        <br>
+        <!-- 新增：儲存的行程 ID 管理 -->
+        <div>
+            <label for="saved-trips-select">選擇已存行程:</label>
+            <select id="saved-trips-select">
+                <option value="">-- 無已存行程 --</option>
+            </select>
+            <button id="delete-selected-trip-btn" style="margin-left: 5px;" disabled>刪除選定</button>
+        </div>
+        <br>
+        <div>
+            <strong>目前行程 ID:</strong> <span id="current-trip-id">尚未載入</span>
+            <!-- 新增：顯示行程名稱 -->
+            (<span id="current-trip-name"></span>)
+            <!-- 加入 QR Code 按鈕 -->
+            <button id="toggle-qrcode-btn" style="margin-left: 10px; display: none;">顯示/隱藏 QR Code</button>
+        </div>
+        <!-- 加入 QR Code 容器 (預設隱藏) -->
+        <div id="qrcode-container" style="margin-top: 10px; display: none;"></div>
+    </section>
+
+    <hr>
+
+    <!-- 行程內容 (預設隱藏，載入行程後顯示) -->
+    <div id="itinerary-content" style="display: none;">
+        <!-- 行程建立表單 -->
+        <section id="create-itinerary">
+            <h2>新增行程項目</h2>
+            <form id="itinerary-form">
+                <label for="item-date">日期與時間:</label>
+                <input type="datetime-local" id="item-date" required><br><br>
+
+                <label for="item-type">類型:</label>
+                <select id="item-type" required>
+                    <option value="">--請選擇--</option>
+                    <option value="transport">交通</option>
+                    <option value="accommodation">住宿</option>
+                    <option value="activity">活動</option>
+                    <option value="food">餐飲</option>
+                    <option value="other">其他</option>
+                </select><br><br>
+
+                <label for="item-description">描述:</label>
+                <input type="text" id="item-description" required><br><br>
+
+                <label for="item-location">地點:</label>
+                <input type="text" id="item-location"><br><br>
+
+                <label for="item-cost">預計花費:</label>
+                <input type="number" id="item-cost" step="0.01"><br><br>
+
+                <button type="submit">新增項目</button>
+            </form>
+        </section>
+
+        <hr>
+
+        <!-- 行程顯示區域 -->
+        <section id="display-itinerary">
+            <h2>行程列表</h2>
+            <ul id="itinerary-list">
+                <!-- 行程項目將會動態加載到這裡 -->
+            </ul>
+        </section>
+    </div>
+
+    <!-- Firebase SDK (Software Development Kit) -->
+    <!-- 注意：這裡引入了核心、Firestore 和 Auth。如果您選擇 Realtime Database，請替換或添加對應的 SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <!-- <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script> --> <!-- 暫時註解掉 Firestore -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script> <!-- 加入 Realtime Database -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
+    <!-- Firebase 設定檔 -->
+    <script src="js/firebase-config.js"></script>
+
+    <!-- QR Code 產生函式庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+    <!-- 主要的應用程式邏輯 -->
+    <!-- <script src="js/app.js"></script> -->
+    <script src="js/itinerary.js"></script>
+
+    <!-- 行程項目編輯 Modal (預設隱藏) -->
+    <div id="edit-item-modal" style="display: none; position: fixed; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; padding: 20px; box-sizing: border-box;">
+        <div style="background-color: white; padding: 20px; border-radius: 5px; max-width: 500px; margin: 50px auto;">
+            <h2>編輯行程項目</h2>
+            <form id="edit-itinerary-form">
+                <!-- 隱藏欄位，用來儲存正在編輯的項目 ID -->
+                <input type="hidden" id="edit-item-id">
+
+                <label for="edit-item-date">日期與時間:</label>
+                <input type="datetime-local" id="edit-item-date" required><br><br>
+
+                <label for="edit-item-type">類型:</label>
+                <select id="edit-item-type" required>
+                    <option value="">--請選擇--</option>
+                    <option value="transport">交通</option>
+                    <option value="accommodation">住宿</option>
+                    <option value="activity">活動</option>
+                    <option value="food">餐飲</option>
+                    <option value="other">其他</option>
+                </select><br><br>
+
+                <label for="edit-item-description">描述:</label>
+                <input type="text" id="edit-item-description" required><br><br>
+
+                <label for="edit-item-location">地點:</label>
+                <input type="text" id="edit-item-location"><br><br>
+
+                <label for="edit-item-cost">預計花費:</label>
+                <input type="number" id="edit-item-cost" step="0.01"><br><br>
+
+                <button type="submit">儲存變更</button>
+                <button type="button" id="cancel-edit-btn">取消</button>
+            </form>
+        </div>
+    </div>
+
+</body>
+</html> 

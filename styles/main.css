@@ -1,0 +1,75 @@
+/* styles/main.css */
+
+body {
+    padding: 20px;
+}
+
+/* 微調 Pico.css 的預設值或添加自訂樣式 */
+
+/* 讓編輯 Modal 的背景更明顯一點 */
+#edit-item-modal {
+    background-color: rgba(0, 0, 0, 0.65);
+}
+
+/* Modal 內容區域 */
+#edit-item-modal > div {
+    /* Pico.css 已經處理了大部分樣式，這裡可以根據需要調整 */
+    padding: 1.5rem;
+}
+
+/* QR Code 容器 */
+#qrcode-container img {
+    display: block; /* 避免下方多餘空白 */
+    margin: auto;   /* 置中 */
+}
+
+/* 行程項目列表 */
+#itinerary-list li {
+    display: flex; /* 使用 flex 排列項目和按鈕 */
+    align-items: center; /* 垂直置中 */
+    justify-content: space-between; /* 將文字和按鈕推到兩邊 */
+    margin-bottom: 0.5rem; /* 項目間距 */
+    padding: 0.5rem; /* 項目內邊距 */
+    border: 1px solid var(--pico-form-element-border-color); /* 使用 Pico 的邊框顏色 */
+    border-radius: var(--pico-border-radius); /* 使用 Pico 的圓角 */
+}
+
+/* 行程項目文字 */
+#itinerary-list li span {
+    flex-grow: 1; /* 文字佔據多餘空間 */
+    margin-right: 1rem; /* 文字和按鈕間距 */
+}
+
+/* 行程項目按鈕組 */
+#itinerary-list li div {
+    flex-shrink: 0; /* 按鈕不壓縮 */
+}
+
+/* 調整按鈕間距 (Pico 預設按鈕間有邊距) */
+#itinerary-list li button {
+    margin-left: 0.5rem;
+}
+
+/* 頁面通知 */
+#notification-area {
+    padding: 0.75rem 1rem;
+    border-radius: var(--pico-border-radius);
+    color: white;
+    opacity: 1;
+    transition: opacity 0.5s ease-out;
+}
+
+#notification-area.success {
+    background-color: var(--pico-color-green-600);
+}
+
+#notification-area.error {
+    background-color: var(--pico-color-red-600);
+}
+
+/* 載入提示 */
+#loading-indicator {
+    /* 可以根據需要添加樣式，例如旋轉動畫 */
+}
+
+/* 可以在這裡加入更多自訂樣式 */ 
