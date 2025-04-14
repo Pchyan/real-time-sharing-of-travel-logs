@@ -1,11 +1,14 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="即時旅行記錄與分享應用 - 記錄行程、追蹤預算、分享體驗">
     <title>旅行記錄</title>
-    <!-- Pico.css -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✈️</text></svg>">
+    <!-- Pico.css v2 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <!-- 自訂樣式 -->
     <link rel="stylesheet" href="styles/main.css">
     <!-- Font Awesome 圖示庫 -->
@@ -15,7 +18,7 @@
     <!-- Google Fonts (中文字型) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
     <!-- 未來可以加入 CSS 樣式表連結 -->
     <!-- <link rel="stylesheet" href="styles/main.css"> -->
     <!-- *** 新增：FileSaver.js *** -->
@@ -24,122 +27,327 @@
     <script src="https://unpkg.com/html-docx-js@0.3.1/dist/html-docx.js"></script>
 </head>
 <body>
-    <h1>
-        旅行記錄應用程式
-        <!-- 連線狀態指示器 -->
-        <span id="connection-status" style="font-size: 0.8em; margin-left: 15px; padding: 3px 8px; border-radius: 5px;"></span>
-        <!-- 待同步操作指示器 -->
-        <span id="pending-writes-indicator" style="font-size: 0.8em; margin-left: 10px; display: none;"></span>
-    </h1>
+    <!-- 導航列 -->
+    <nav class="container-fluid">
+        <ul>
+            <li><strong><i class="fa-solid fa-plane-departure"></i> 旅行記錄</strong></li>
+        </ul>
+        <ul>
+            <li>
+                <!-- 連線狀態指示器 -->
+                <span id="connection-status" class="badge"></span>
+                <!-- 待同步操作指示器 -->
+                <span id="pending-writes-indicator" style="display: none;" class="badge"></span>
+            </li>
+            <li>
+                <!-- 主題選擇器 -->
+                <div class="theme-selector">
+                    <select id="theme-select" aria-label="選擇主題">
+                        <option value="light">淺色主題</option>
+                        <option value="dark">深色主題</option>
+                        <option value="purple">紫色主題</option>
+                        <option value="green">綠色主題</option>
+                        <option value="blue">藍色主題</option>
+                    </select>
+                </div>
+            </li>
+        </ul>
+    </nav>
 
-    <!-- 頁面通知區域 -->
-    <div id="notification-area" role="alert" style="display: none; margin-bottom: 1rem;"></div>
+    <main class="container">
+        <h1>
+            旅行記錄應用程式
+        </h1>
 
-    <!-- 行程管理 -->
-    <section id="trip-management">
-        <h2>行程管理</h2>
-        <div>
-            <label for="trip-name">新行程名稱:</label>
-            <input type="text" id="trip-name" placeholder="例如：東京五日遊">
-            <button id="create-trip-btn"><i class="fa-solid fa-plus"></i> 建立</button>
-        </div>
-        <br>
-        <div>
-            <label for="trip-id-input">載入行程 ID:</label>
-            <input type="text" id="trip-id-input" placeholder="貼上行程 ID">
-            <button type="button" id="scan-qr-btn" style="margin-left: 5px;" title="掃描 QR Code"><i class="fa-solid fa-qrcode"></i></button>
-            <button id="load-trip-btn" style="margin-left: 5px;"><i class="fa-solid fa-arrow-right-to-bracket"></i> 載入</button>
-            <span id="loading-indicator" style="margin-left: 10px; display: none;">載入中...</span>
-        </div>
-        <br>
-        <div class="grid">
-            <select id="saved-trips-select">
-                <option value="">-- 無已存行程 --</option>
-            </select>
-            <div>
-                <button id="delete-selected-trip-btn" class="secondary" disabled title="從此瀏覽器移除選擇的行程記錄"><i class="fa-solid fa-trash-can"></i></button>
-                <button id="settings-btn" class="secondary outline" title="設定"><i class="fa-solid fa-gear"></i></button>
+        <!-- 頁面通知區域 -->
+        <div id="notification-area" role="alert" style="display: none;" class="alert"></div>
+
+        <!-- 行程管理 -->
+        <section id="trip-management" aria-labelledby="trip-management-heading">
+            <h2 id="trip-management-heading" class="with-icon"><i class="fa-solid fa-suitcase"></i> 行程管理</h2>
+            
+            <!-- 新行程建立 -->
+            <div class="grid">
+                <div>
+                    <label for="trip-name">
+                        新行程名稱
+                        <input type="text" id="trip-name" placeholder="例如：東京五日遊" required>
+                    </label>
+                </div>
+                <div class="action-buttons">
+                    <button id="create-trip-btn" class="primary"><i class="fa-solid fa-plus"></i> 建立新行程</button>
+                </div>
             </div>
-        </div>
-        <br>
-        <div>
-            <strong><i class="fa-solid fa-route"></i> 目前行程:</strong>
-            (<span id="current-trip-name"></span>) ID: <span id="current-trip-id">尚未載入</span>
-            <button id="toggle-qrcode-btn" style="margin-left: 10px; display: none;" title="顯示/隱藏 QR Code"><i class="fa-solid fa-qrcode"></i></button>
-        </div>
-        <!-- *** 新增：總花費顯示區域 *** -->
-        <div style="margin-top: 5px;">
-            <strong><i class="fa-solid fa-coins"></i> 總預計花費:</strong> 
-            <span id="total-cost-display">--</span>
-        </div>
-        <!-- 加入 QR Code 容器 (預設隱藏) -->
-        <div id="qrcode-container" style="margin-top: 10px; display: none;"></div>
-    </section>
 
-    <hr>
+            <!-- 行程載入 -->
+            <div class="grid">
+                <div class="load-trip-container">
+                    <label for="trip-id-input">
+                        載入行程 ID
+                        <div class="input-group">
+                            <input type="text" id="trip-id-input" placeholder="貼上行程 ID">
+                            <button type="button" id="scan-qr-btn" class="secondary outline" title="掃描 QR Code"><i class="fa-solid fa-qrcode"></i></button>
+                            <button id="load-trip-btn" class="primary"><i class="fa-solid fa-arrow-right-to-bracket"></i> 載入</button>
+                        </div>
+                    </label>
+                    <span id="loading-indicator" style="margin-left: 10px; display: none;" aria-live="polite">載入中...</span>
+                </div>
+            </div>
 
-    <!-- 行程內容 (預設隱藏，載入行程後顯示) -->
-    <div id="itinerary-content" style="display: none;">
-        <!-- 行程建立表單 -->
-        <section id="create-itinerary">
-            <h2>新增行程項目</h2>
-            <form id="itinerary-form">
-                <label for="item-date">日期與時間:</label>
-                <input type="datetime-local" id="item-date" required><br><br>
+            <!-- 已存行程選擇 -->
+            <div class="grid">
+                <label for="saved-trips-select">
+                    已儲存行程
+                    <select id="saved-trips-select">
+                        <option value="">-- 無已存行程 --</option>
+                    </select>
+                </label>
+                <div class="action-buttons">
+                    <button id="delete-selected-trip-btn" class="secondary outline" disabled title="從此瀏覽器移除選擇的行程記錄"><i class="fa-solid fa-trash-can"></i> 移除</button>
+                    <button id="settings-btn" class="secondary outline" title="設定"><i class="fa-solid fa-gear"></i> 設定</button>
+                </div>
+            </div>
 
-                <label for="item-type">類型:</label>
-                <select id="item-type" required>
-                    <option value="">--請選擇--</option>
-                    <option value="transport">交通</option>
-                    <option value="accommodation">住宿</option>
-                    <option value="activity">活動</option>
-                    <option value="food">餐飲</option>
-                    <option value="other">其他</option>
-                </select><br><br>
-
-                <label for="item-description">描述:</label>
-                <input type="text" id="item-description" required><br><br>
-
-                <label for="item-location">地點:</label>
-                <input type="text" id="item-location"><br><br>
-
-                <label for="item-cost">預計花費:</label>
-                <input type="number" id="item-cost" step="0.01"><br><br>
-
-                <button type="submit">新增項目</button>
-            </form>
+            <!-- 目前行程資訊卡 -->
+            <article id="current-trip-card" class="trip-info-card">
+                <header>
+                    <i class="fa-solid fa-route"></i> 目前行程
+                </header>
+                <div class="grid">
+                    <div>
+                        <h3 id="current-trip-name"></h3>
+                        <p><small>ID: <code id="current-trip-id">尚未載入</code></small></p>
+                    </div>
+                    <div class="trip-actions">
+                        <button id="toggle-qrcode-btn" style="display: none;" class="secondary outline" title="顯示/隱藏 QR Code"><i class="fa-solid fa-qrcode"></i> 分享</button>
+                    </div>
+                </div>
+                <!-- 總預計花費 -->
+                <footer>
+                    <div class="total-cost-section">
+                        <i class="fa-solid fa-coins"></i> 總預計花費:
+                        <span id="total-cost-display" class="badge contrast">--</span>
+                    </div>
+                </footer>
+            </article>
+            
+            <!-- QR Code 容器 -->
+            <div id="qrcode-container" style="display: none;" class="qrcode-display"></div>
         </section>
 
         <hr>
 
-        <!-- 行程顯示區域 -->
-        <section id="display-itinerary">
-            <h2>行程列表</h2>
-            <ul id="itinerary-list">
-                <!-- 行程項目將會動態加載到這裡 -->
-            </ul>
-        </section>
-    </div>
+        <!-- 行程內容 (預設隱藏，載入行程後顯示) -->
+        <div id="itinerary-content" style="display: none;">
+            <!-- 行程建立表單 -->
+            <section id="create-itinerary">
+                <article>
+                    <header>
+                        <h2><i class="fa-solid fa-calendar-plus"></i> 新增行程項目</h2>
+                    </header>
+                    <form id="itinerary-form" class="grid">
+                        <div>
+                            <label for="item-date">
+                                <i class="fa-regular fa-calendar"></i> 日期與時間
+                                <input type="datetime-local" id="item-date" required>
+                            </label>
+                        </div>
+                        <div>
+                            <label for="item-type">
+                                <i class="fa-solid fa-tags"></i> 類型
+                                <select id="item-type" required>
+                                    <option value="">--請選擇--</option>
+                                    <option value="transport">交通</option>
+                                    <option value="accommodation">住宿</option>
+                                    <option value="activity">活動</option>
+                                    <option value="food">餐飲</option>
+                                    <option value="other">其他</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div>
+                            <label for="item-description">
+                                <i class="fa-solid fa-align-left"></i> 描述
+                                <input type="text" id="item-description" required>
+                            </label>
+                        </div>
+                        <div>
+                            <label for="item-location">
+                                <i class="fa-solid fa-location-dot"></i> 地點
+                                <input type="text" id="item-location">
+                            </label>
+                        </div>
+                        <div>
+                            <label for="item-cost">
+                                <i class="fa-solid fa-coins"></i> 預計花費
+                                <input type="number" id="item-cost" step="0.01" placeholder="0.00">
+                            </label>
+                        </div>
+                        <div>
+                            <button type="submit" class="primary"><i class="fa-solid fa-plus"></i> 新增項目</button>
+                        </div>
+                    </form>
+                </article>
+            </section>
 
-    <!-- QR Code 掃描 Modal (預設隱藏) -->
-    <div id="scan-modal" style="display: none; position: fixed; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); z-index: 1010; padding: 10px; box-sizing: border-box; text-align: center; color: white;">
-        <p>請將行程 QR Code 對準相機</p>
-        <div style="position: relative; width: 80%; max-width: 400px; margin: 10px auto;">
-            <video id="scan-video" playsinline style="width: 100%; height: auto; border: 1px solid grey;"></video>
-            <!-- Canvas 用於 jsQR 處理，可以設為隱藏或疊加顯示掃描框 -->
-            <canvas id="scan-canvas" style="display: none;"></canvas>
+            <!-- 行程顯示區域 -->
+            <section id="display-itinerary">
+                <h2><i class="fa-solid fa-list-check"></i> 行程列表</h2>
+                <div class="itinerary-container">
+                    <ul id="itinerary-list" class="sortable-list">
+                        <!-- 行程項目將會動態加載到這裡 -->
+                    </ul>
+                </div>
+            </section>
         </div>
-        <button type="button" id="cancel-scan-btn">取消掃描</button>
-        <p id="scan-feedback" style="margin-top: 10px;"></p>
-    </div>
+    </main>
 
-    <!-- Firebase SDK (Software Development Kit) -->
-    <!-- 注意：這裡引入了核心、Firestore 和 Auth。如果您選擇 Realtime Database，請替換或添加對應的 SDK -->
+    <!-- 全域 Modals -->
+    
+    <!-- 行程項目編輯 Modal -->
+    <dialog id="edit-item-modal" class="modal">
+        <article>
+            <header>
+                <a href="#close" aria-label="關閉" class="close" data-target="edit-item-modal"></a>
+                <h3><i class="fa-solid fa-pen-to-square"></i> 編輯行程項目</h3>
+            </header>
+            <form id="edit-itinerary-form" class="grid">
+                <!-- 隱藏欄位，用來儲存正在編輯的項目 ID -->
+                <input type="hidden" id="edit-item-id">
+
+                <div>
+                    <label for="edit-item-date">
+                        <i class="fa-regular fa-calendar"></i> 日期與時間
+                        <input type="datetime-local" id="edit-item-date" required>
+                    </label>
+                </div>
+
+                <div>
+                    <label for="edit-item-type">
+                        <i class="fa-solid fa-tags"></i> 類型
+                        <select id="edit-item-type" required>
+                            <option value="">--請選擇--</option>
+                            <option value="transport">交通</option>
+                            <option value="accommodation">住宿</option>
+                            <option value="activity">活動</option>
+                            <option value="food">餐飲</option>
+                            <option value="other">其他</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div>
+                    <label for="edit-item-description">
+                        <i class="fa-solid fa-align-left"></i> 描述
+                        <input type="text" id="edit-item-description" required>
+                    </label>
+                </div>
+
+                <div>
+                    <label for="edit-item-location">
+                        <i class="fa-solid fa-location-dot"></i> 地點
+                        <input type="text" id="edit-item-location">
+                    </label>
+                </div>
+
+                <div>
+                    <label for="edit-item-cost">
+                        <i class="fa-solid fa-coins"></i> 預計花費
+                        <input type="number" id="edit-item-cost" step="0.01" placeholder="0.00">
+                    </label>
+                </div>
+                
+                <footer>
+                    <button type="submit" class="primary"><i class="fa-solid fa-save"></i> 儲存變更</button>
+                    <button type="button" id="cancel-edit-btn" class="secondary outline"><i class="fa-solid fa-times"></i> 取消</button>
+                </footer>
+            </form>
+        </article>
+    </dialog>
+
+    <!-- QR Code 掃描 Modal -->
+    <dialog id="scan-modal" class="modal">
+        <article>
+            <header>
+                <a href="#close" aria-label="關閉" class="close" id="cancel-scan-btn-header"></a>
+                <h3><i class="fa-solid fa-qrcode"></i> 掃描 QR Code</h3>
+            </header>
+            <p>請將行程 QR Code 對準相機</p>
+            <div class="scan-container">
+                <video id="scan-video" playsinline></video>
+                <canvas id="scan-canvas" style="display: none;"></canvas>
+            </div>
+            <p id="scan-feedback" aria-live="polite"></p>
+            <footer>
+                <button type="button" id="cancel-scan-btn" class="secondary outline"><i class="fa-solid fa-times"></i> 取消掃描</button>
+            </footer>
+        </article>
+    </dialog>
+
+    <!-- 已有的 Modals 保持不變 -->
+    <!-- 編輯筆記 Modal -->
+    <dialog id="notes-modal">
+        <article>
+            <header>
+                <a href="#close" aria-label="Close" class="close" id="cancel-notes-btn-header-equivalent"></a>
+                <h3><i class="fa-solid fa-note-sticky"></i> 編輯行程筆記</h3>
+            </header>
+            <input type="hidden" id="notes-item-id">
+            <div id="notes-editor" style="min-height: 200px; border: 1px solid var(--pico-form-field-border-color); margin-bottom: 1rem;">
+                <!-- Quill editor will attach here -->
+            </div>
+            <footer>
+                <button id="save-notes-btn" class="primary"><i class="fa-solid fa-save"></i> 儲存筆記</button>
+                <button id="export-notes-docx-btn" class="secondary"><i class="fa-solid fa-file-word"></i> 匯出 DOCX</button>
+                <button id="cancel-notes-btn" class="secondary outline"><i class="fa-solid fa-times"></i> 取消</button>
+            </footer>
+        </article>
+    </dialog>
+
+    <!-- 設定 Modal -->
+    <dialog id="settings-modal">
+        <article>
+            <header>
+                <a href="#close" aria-label="Close" class="close" id="cancel-settings-btn"></a>
+                <h3><i class="fa-solid fa-gear"></i> 設定</h3>
+            </header>
+            <form id="settings-form">
+                <label for="imgbb-api-key-input">
+                    ImgBB API Key
+                    <input type="text" id="imgbb-api-key-input" name="imgbb-api-key" placeholder="請輸入您的 ImgBB API v1 金鑰">
+                    <small>用於在筆記中上傳圖片。請至 <a href="https://api.imgbb.com/" target="_blank">ImgBB API</a> 網站申請。</small>
+                </label>
+                <footer>
+                    <button type="submit" id="save-settings-btn" class="primary"><i class="fa-solid fa-save"></i> 儲存設定</button>
+                    <button type="button" id="cancel-settings-form-btn" class="secondary outline"><i class="fa-solid fa-times"></i> 取消</button>
+                </footer>
+            </form>
+        </article>
+    </dialog>
+
+    <!-- 拍照 Modal -->
+    <dialog id="camera-modal">
+        <article>
+            <header>
+                <a href="#close" aria-label="Close" class="close" id="cancel-camera-btn"></a>
+                <h3><i class="fa-solid fa-camera"></i> 拍照上傳</h3>
+            </header>
+            <div class="camera-container">
+                <video id="camera-view" autoplay playsinline></video>
+                <canvas id="camera-canvas" style="display: none;"></canvas>
+            </div>
+            <p id="camera-feedback" aria-live="polite"></p>
+            <footer>
+                <button id="capture-photo-btn" class="primary"><i class="fa-solid fa-camera"></i> 拍照</button>
+                <button id="cancel-camera-action-btn" class="secondary outline"><i class="fa-solid fa-times"></i> 取消</button>
+            </footer>
+        </article>
+    </dialog>
+
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <!-- <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script> --> <!-- 暫時註解掉 Firestore -->
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script> <!-- 加入 Realtime Database -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-    <!-- <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script> --> <!-- *** 新增：加入 Storage SDK *** -->
 
     <!-- Firebase 設定檔 -->
     <script src="js/firebase-config.js" defer></script>
@@ -153,108 +361,10 @@
     <!-- SortableJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 
-    <!-- Quill JS (Updated to v2.0.2) -->
+    <!-- Quill JS -->
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
-    <!-- Quill Better Table Module (Temporarily Removed) -->
-    <!-- <link rel="stylesheet" href="https://unpkg.com/quill-better-table@1.2.10/dist/quill-better-table.css"> -->
-    <!-- <script type="text/javascript" src="https://unpkg.com/quill-better-table@1.2.10/dist/quill-better-table.js"></script> -->
 
-    <!-- Custom JS -->
+    <!-- 自訂 JS -->
     <script src="js/itinerary.js" defer></script>
-
-    <!-- 行程項目編輯 Modal (預設隱藏) -->
-    <div id="edit-item-modal" style="display: none; position: fixed; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; padding: 20px; box-sizing: border-box;">
-        <div style="background-color: white; padding: 20px; border-radius: 5px; max-width: 500px; margin: 50px auto;">
-            <h2>編輯行程項目</h2>
-            <form id="edit-itinerary-form">
-                <!-- 隱藏欄位，用來儲存正在編輯的項目 ID -->
-                <input type="hidden" id="edit-item-id">
-
-                <label for="edit-item-date">日期與時間:</label>
-                <input type="datetime-local" id="edit-item-date" required><br><br>
-
-                <label for="edit-item-type">類型:</label>
-                <select id="edit-item-type" required>
-                    <option value="">--請選擇--</option>
-                    <option value="transport">交通</option>
-                    <option value="accommodation">住宿</option>
-                    <option value="activity">活動</option>
-                    <option value="food">餐飲</option>
-                    <option value="other">其他</option>
-                </select><br><br>
-
-                <label for="edit-item-description">描述:</label>
-                <input type="text" id="edit-item-description" required><br><br>
-
-                <label for="edit-item-location">地點:</label>
-                <input type="text" id="edit-item-location"><br><br>
-
-                <label for="edit-item-cost">預計花費:</label>
-                <input type="number" id="edit-item-cost" step="0.01"><br><br>
-
-                <button type="submit">儲存變更</button>
-                <button type="button" id="cancel-edit-btn">取消</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- 編輯筆記 Modal -->
-    <dialog id="notes-modal">
-        <article>
-            <header>
-                <a href="#close" aria-label="Close" class="close" id="cancel-notes-btn-header-equivalent"></a>
-                編輯行程筆記
-            </header>
-            <input type="hidden" id="notes-item-id">
-            <div id="notes-editor" style="min-height: 200px; border: 1px solid var(--pico-form-field-border-color); margin-bottom: 1rem;">
-                <!-- Quill editor will attach here -->
-            </div>
-            <footer>
-                <button id="save-notes-btn"><i class="fa-solid fa-save"></i> 儲存筆記</button>
-                <!-- *** 新增匯出按鈕 *** -->
-                <button id="export-notes-docx-btn" class="secondary"><i class="fa-solid fa-file-word"></i> 匯出 DOCX</button>
-                <button id="cancel-notes-btn" class="secondary outline">取消</button>
-            </footer>
-        </article>
-    </dialog>
-
-    <!-- *** 新增：設定 Modal *** -->
-    <dialog id="settings-modal">
-        <article>
-            <header>
-                <a href="#close" aria-label="Close" class="close" id="cancel-settings-btn"></a>
-                <i class="fa-solid fa-gear"></i> 設定
-            </header>
-            <form id="settings-form">
-                <label for="imgbb-api-key-input">
-                    ImgBB API Key
-                    <input type="text" id="imgbb-api-key-input" name="imgbb-api-key" placeholder="請輸入您的 ImgBB API v1 金鑰">
-                    <small>用於在筆記中上傳圖片。請至 <a href="https://api.imgbb.com/" target="_blank">ImgBB API</a> 網站申請。</small>
-                </label>
-                <footer>
-                    <button type="submit" id="save-settings-btn">儲存設定</button>
-                </footer>
-            </form>
-        </article>
-    </dialog>
-
-    <!-- *** 新增：拍照 Modal *** -->
-    <dialog id="camera-modal">
-        <article>
-            <header>
-                <a href="#close" aria-label="Close" class="close" id="cancel-camera-btn"></a>
-                <i class="fa-solid fa-camera"></i> 拍照上傳
-            </header>
-            <div style="position: relative;">
-                <video id="camera-view" autoplay playsinline style="width: 100%; max-height: 60vh; border: 1px solid var(--muted-border-color); background-color: #333;"></video>
-                <canvas id="camera-canvas" style="display: none;"></canvas> <!-- 隱藏的 Canvas -->
-            </div>
-            <p id="camera-feedback" style="text-align: center; min-height: 1.5em;"></p>
-            <footer>
-                <button id="capture-photo-btn" class="contrast"><i class="fa-solid fa-circle-camera"></i> 拍照</button>
-            </footer>
-        </article>
-    </dialog>
-
 </body>
 </html> 

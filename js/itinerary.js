@@ -1,3 +1,90 @@
+/* ------------------------
+ * 旅行記錄應用 - UI/UX Enhanced
+ * ------------------------ */
+console.log("itinerary.js loaded (UI/UX Enhanced Version)");
+
+// *** 主題選擇功能 ***
+function setupThemeToggle() {
+    const themeSelect = document.getElementById('theme-select');
+    const htmlElement = document.documentElement;
+    
+    // 檢查 localStorage 中儲存的主題偏好
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    htmlElement.setAttribute('data-theme', savedTheme);
+    
+    // 設置選擇器的預設值為已儲存的主題
+    if (themeSelect) {
+        themeSelect.value = savedTheme;
+        
+        // 監聽主題變更
+        themeSelect.addEventListener('change', () => {
+            const newTheme = themeSelect.value;
+            htmlElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            
+            console.log(`主題已切換至: ${newTheme}`);
+            showNotification(`已套用${themeSelect.options[themeSelect.selectedIndex].text}`, 'success', 2000);
+        });
+    } else {
+        console.warn("找不到主題選擇器元素");
+    }
+}
+
+// *** 通知系統優化 ***
+function showNotification(message, type = 'info', duration = 5000) {
+    const notificationArea = document.getElementById('notification-area');
+    if (!notificationArea) return;
+    
+    // 清除任何現有通知
+    notificationArea.innerHTML = '';
+    notificationArea.style.display = 'block';
+    
+    // 創建通知元素
+    const notification = document.createElement('div');
+    notification.className = `alert ${type}`;
+    notification.setAttribute('role', 'alert');
+    
+    // 加入適當的圖示
+    let icon = '';
+    switch(type) {
+        case 'success': icon = '<i class="fa-solid fa-circle-check"></i> '; break;
+        case 'error': icon = '<i class="fa-solid fa-circle-exclamation"></i> '; break;
+        case 'warning': icon = '<i class="fa-solid fa-triangle-exclamation"></i> '; break;
+        default: icon = '<i class="fa-solid fa-circle-info"></i> ';
+    }
+    
+    notification.innerHTML = `${icon}${message}`;
+    notificationArea.appendChild(notification);
+    
+    // 設定自動關閉計時器
+    if (duration > 0) {
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => {
+                notificationArea.style.display = 'none';
+            }, 300);
+        }, duration);
+    }
+}
+
+// *** 連線狀態顯示優化 ***
+function updateConnectionStatus(isOnline) {
+    const statusElement = document.getElementById('connection-status');
+    if (!statusElement) return;
+    
+    statusElement.className = isOnline ? 'badge online' : 'badge offline';
+    statusElement.textContent = isOnline ? '線上' : '離線';
+    
+    console.log(`Firebase Realtime Database: ${isOnline ? 'Online' : 'Offline'}`);
+}
+
+// *** DOM 載入後初始化 UI 增強功能 ***
+document.addEventListener('DOMContentLoaded', function() {
+    setupThemeToggle();
+    
+    // 原有程式碼繼續執行...
+});
+
 // 等待 DOM 完全載入
 document.addEventListener('DOMContentLoaded', () => {
     console.log("itinerary.js loaded (UI/UX Improvements Version)");
@@ -72,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const scanModal = document.getElementById('scan-modal'); // *** 新增 ***
     const scanVideo = document.getElementById('scan-video'); // *** 新增 ***
     const scanCanvas = document.getElementById('scan-canvas'); // *** 新增 ***
-    const scanCanvasCtx = scanCanvas.getContext('2d'); // *** 新增 ***
+    const scanCanvasContext = scanCanvas.getContext('2d'); // *** 新增 ***
     const cancelScanBtn = document.getElementById('cancel-scan-btn'); // *** 新增 ***
     const scanFeedback = document.getElementById('scan-feedback'); // *** 新增 ***
 
@@ -167,29 +254,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 連線狀態監聽 --- 
     function setupConnectionListener() {
-        const connectedRef = db.ref(".info/connected");
+        const connectedRef = firebase.database().ref(".info/connected");
         connectedRef.on("value", (snap) => {
-            const wasOnline = isOnline; // 記錄之前的狀態
-            isOnline = snap.val(); // 更新目前狀態
-
-            if (isOnline) {
-                console.log("Firebase Realtime Database: Online");
-                // 加上圖示
-                connectionStatusSpan.innerHTML = `<i class="fa-solid fa-wifi"></i> 線上`; 
-                connectionStatusSpan.className = 'online';
-                if (!wasOnline) { // 如果是從離線恢復
-                    showNotification("已恢復線上連線，正在同步資料...", 'success');
-                    pendingWritesCount = 0; // 重置計數器
-                    updatePendingWritesUI(); // 更新 UI
-                    console.log("Pending writes reset to 0.");
-                }
-            } else {
-                console.log("Firebase Realtime Database: Offline");
-                // 加上圖示
-                connectionStatusSpan.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> 離線 (資料將在連線後同步)`; 
-                connectionStatusSpan.className = 'offline';
-                showNotification("目前為離線狀態，您的變更將在恢復連線後同步。", 'error');
-                updatePendingWritesUI(); // 更新 UI (可能已有待同步項目)
+            isOnline = !!snap.val();
+            updateConnectionStatus(isOnline); // 使用新的連線狀態顯示函式
+            
+            if (isOnline && pendingWritesCount > 0) {
+                console.log("重新連線，擱置的寫入操作將被同步。");
+                pendingWritesCount = 0; // 在線上時重置計數器
+                updatePendingWritesUI();
             }
         });
     }
@@ -387,87 +460,122 @@ document.addEventListener('DOMContentLoaded', () => {
     scanQrBtn.addEventListener('click', startScan);
     cancelScanBtn.addEventListener('click', stopScan);
 
+    // 開始掃描
     function startScan() {
-        // 檢查瀏覽器支援性
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            showNotification("您的瀏覽器不支援相機存取功能", 'error');
-            return;
+        console.log("開始掃描 QR Code");
+        
+        // 使用 dialog 的 showModal 方法打開 Modal (新版)
+        if (scanModal.showModal) {
+            scanModal.showModal();
+        } else {
+            // 舊版顯示方式 (保留相容性)
+            scanModal.style.display = 'block';
         }
-        if (typeof jsQR === 'undefined') {
-             showNotification("QR Code 掃描函式庫載入失敗", 'error');
-             return;
+        
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                .then(function(stream) {
+                    scanVideo.srcObject = stream;
+                    scanVideo.setAttribute("playsinline", true); // iOS 需要
+                    scanVideo.play();
+                    
+                    // 定時執行掃描
+                    scanInterval = setInterval(tick, 100);
+                    
+                    console.log("掃描相機已啟動");
+                })
+                .catch(function(error) {
+                    console.error("無法存取相機: ", error);
+                    
+                    if (error.name === 'NotAllowedError') {
+                        alert("無法啟動掃描功能：相機權限被拒絕。請在瀏覽器設定中允許相機存取。");
+                    } else if (error.name === 'NotFoundError') {
+                        alert("無法啟動掃描功能：找不到相機裝置。");
+                    } else {
+                        alert(`無法啟動掃描功能：${error.message}`);
+                    }
+                    
+                    stopScan();
+                });
+        } else {
+            alert("很抱歉，您的裝置不支援相機存取功能，無法使用 QR Code 掃描。");
+            stopScan();
         }
-
-        scanModal.style.display = 'block';
-        scanFeedback.textContent = '請求相機權限...';
-
-        // 請求後置鏡頭
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-            .then(stream => {
-                mediaStream = stream;
-                scanVideo.srcObject = stream;
-                scanVideo.setAttribute("playsinline", true); // iOS 需要
-                scanVideo.play();
-                scanFeedback.textContent = '相機已啟動，請對準 QR Code';
-                // 開始掃描迴圈
-                rafId = requestAnimationFrame(tick);
-            })
-            .catch(err => {
-                console.error("無法獲取相機權限: ", err);
-                scanFeedback.textContent = `無法啟動相機: ${err.name}`;
-                showNotification("無法啟動相機，請檢查權限設定", 'error');
-                // 短暫顯示錯誤後自動關閉 Modal
-                setTimeout(stopScan, 3000);
-            });
     }
 
+    // QR 掃描處理函數
     function tick() {
-        if (scanVideo.readyState === scanVideo.HAVE_ENOUGH_DATA) {
-            scanFeedback.textContent = '掃描中...';
-            // 設定 canvas 尺寸匹配 video
-            scanCanvas.height = scanVideo.videoHeight;
+        // 檢查視訊是否已準備好
+        if (!scanVideo || !scanVideo.videoWidth) return;
+        
+        // 調整畫布大小以匹配視訊
+        if (scanCanvas.width !== scanVideo.videoWidth) {
             scanCanvas.width = scanVideo.videoWidth;
-            scanCanvasCtx.drawImage(scanVideo, 0, 0, scanCanvas.width, scanCanvas.height);
-            
-            // 獲取圖像數據
-            const imageData = scanCanvasCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
-            
-            // 使用 jsQR 解碼
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: "dontInvert", // 通常不需要反轉
-            });
-
-            if (code) {
-                // 掃描成功
-                console.log("掃描到 QR Code: ", code.data);
-                scanFeedback.textContent = `掃描成功: ${code.data}`; 
-                tripIdInput.value = code.data; // 將結果填入輸入框
-                stopScan(); // 停止掃描
-                showNotification("QR Code 掃描成功！ID 已填入輸入框。", 'success');
-                // (可選) 自動觸發載入
-                // loadTripBtn.click(); 
-                return; // 結束迴圈
-            } else {
-                 scanFeedback.textContent = '掃描中... 未偵測到 QR Code';
-            }
+            scanCanvas.height = scanVideo.videoHeight;
         }
-        // 繼續下一幀
-        rafId = requestAnimationFrame(tick);
+        
+        // 將視訊畫面繪製到畫布上
+        scanCanvasContext.drawImage(scanVideo, 0, 0, scanCanvas.width, scanCanvas.height);
+        
+        // 取得影像資料
+        const imageData = scanCanvasContext.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+        
+        try {
+            // 使用 jsQR 分析影像中的 QR Code
+            const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: "dontInvert",
+            });
+            
+            // 如果找到 QR Code
+            if (qrCode) {
+                console.log("QR Code 掃描成功:", qrCode.data);
+                
+                // 停止掃描
+                stopScan();
+                
+                // 將掃描結果填入 tripId 輸入欄位
+                if (qrCode.data && qrCode.data.trim()) {
+                    const tripIdInput = document.getElementById('trip-id-input');
+                    if (tripIdInput) {
+                        tripIdInput.value = qrCode.data.trim();
+                        // 提示使用者
+                        const feedback = document.getElementById('scan-feedback');
+                        if (feedback) {
+                            feedback.textContent = "已掃描到 QR Code!";
+                        }
+                        
+                        showNotification("QR Code 掃描成功，請點擊「載入」按鈕載入行程", "success");
+                    }
+                } else {
+                    showNotification("掃描到的 QR Code 沒有包含有效資料", "error");
+                }
+            }
+        } catch (error) {
+            console.error("QR Code 掃描處理錯誤:", error);
+            showNotification("QR Code 處理發生錯誤", "error");
+            stopScan();
+        }
     }
 
     function stopScan() {
-        if (rafId) {
-            cancelAnimationFrame(rafId);
-            rafId = null;
+        console.log("停止掃描");
+        if (scanVideo.srcObject) {
+            const tracks = scanVideo.srcObject.getTracks();
+            tracks.forEach(track => track.stop());
+            scanVideo.srcObject = null;
         }
-        if (mediaStream) {
-            mediaStream.getTracks().forEach(track => track.stop());
-            mediaStream = null;
-            scanVideo.srcObject = null; // 清除影像來源
-            console.log("相機已關閉");
+        
+        // 關閉舊版 scan-modal div 模式
+        if (scanModal.style) {
+            scanModal.style.display = "none";
         }
-        scanModal.style.display = 'none';
-        scanFeedback.textContent = ''; // 清空回饋
+        
+        // 關閉新版 dialog 模式
+        if (scanModal.close) {
+            scanModal.close();
+        }
+        
+        scanInterval = null;
     }
 
     // --- 行程項目相關 ---
@@ -726,9 +834,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    itineraryForm.addEventListener('submit', (e) => {
+    itineraryForm.addEventListener('submit', function(e) {
         e.preventDefault();
-
+        
         // 基本驗證 (描述是必填的)
         const descriptionInput = document.getElementById('item-description');
         descriptionInput.classList.remove('input-error');
@@ -738,16 +846,16 @@ document.addEventListener('DOMContentLoaded', () => {
             descriptionInput.focus();
             return;
         }
-        // 其他欄位驗證可按需添加
-
+        
         if (!activeTripId) {
-             showNotification("請先建立或載入一個行程！", 'error');
+            showNotification("請先建立或載入一個行程！", 'error');
             return;
         }
+        
         const submitButton = itineraryForm.querySelector('button[type="submit"]');
         submitButton.disabled = true;
         submitButton.setAttribute('aria-busy', 'true');
-
+        
         const newItem = {
             dateTime: document.getElementById('item-date').value,
             type: document.getElementById('item-type').value,
@@ -757,15 +865,18 @@ document.addEventListener('DOMContentLoaded', () => {
             createdAt: firebase.database.ServerValue.TIMESTAMP,
             order: firebase.database.ServerValue.TIMESTAMP
         };
+        
         const currentItineraryRef = db.ref(`trips/${activeTripId}/itineraries`);
         
-        incrementPendingWrites(); // *** 在寫入前檢查並增加計數 ***
-
+        if (!isOnline) {
+            incrementPendingWrites();
+        }
+        
         currentItineraryRef.push(newItem)
             .then(() => {
-                 showNotification("行程項目已新增！", 'success');
+                showNotification("行程項目已新增！", 'success');
                 itineraryForm.reset();
-                 descriptionInput.classList.remove('input-error');
+                descriptionInput.classList.remove('input-error');
             })
             .catch((error) => {
                 console.error(`新增行程項目到 ${activeTripId} 時發生錯誤: `, error);
@@ -845,6 +956,26 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             // 初始狀態下不選中任何項目，刪除按鈕禁用
             deleteSelectedTripBtn.disabled = true; 
+        }
+    }
+
+    // *** 新增：更新刪除按鈕狀態函數 ***
+    function updateDeleteButtonState() {
+        const selectedTripId = savedTripsSelect.value;
+        if (selectedTripId) {
+            tripIdInput.value = selectedTripId; // 將選中ID填入輸入框
+            deleteSelectedTripBtn.disabled = false; // 啟用刪除按鈕
+        } else {
+            tripIdInput.value = ''; // 清空輸入框
+            deleteSelectedTripBtn.disabled = true; // 禁用刪除按鈕
+        }
+    }
+
+    // *** 新增：刪除選定行程函數 ***
+    function deleteSelectedTrip() {
+        const selectedTripId = savedTripsSelect.value;
+        if (selectedTripId) {
+            removeSavedTrip(selectedTripId);
         }
     }
 
@@ -1023,6 +1154,101 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
+    // Quill 工具欄提示和相機按鈕添加
+    function addQuillToolbarTooltips(editorContainer) {
+        console.log("開始添加 Quill 工具欄提示和功能按鈕...");
+        try {
+            // 等待工具欄元素完成渲染
+            setTimeout(() => {
+                const toolbar = editorContainer.querySelector('.ql-toolbar');
+                if (!toolbar) {
+                    console.error("找不到 Quill 工具欄！");
+                    return;
+                }
+                
+                console.log("找到 Quill 工具欄，開始尋找圖片按鈕...");
+                // 找到圖片按鈕
+                const imageButton = toolbar.querySelector('button.ql-image');
+                if (!imageButton) {
+                    console.error("找不到圖片按鈕！");
+                    return;
+                }
+                
+                // 保存圖片按鈕的父元素
+                const imageButtonContainer = imageButton.parentElement;
+                imageButton.title = "上傳圖片";
+                
+                // 創建相機按鈕
+                const cameraButton = document.createElement('button');
+                cameraButton.className = 'ql-camera';
+                cameraButton.innerHTML = '<i class="fa-solid fa-camera"></i>';
+                cameraButton.title = "拍照";
+                cameraButton.style.fontSize = imageButton.style.fontSize;
+                cameraButton.style.width = imageButton.style.width;
+                cameraButton.style.height = imageButton.style.height;
+                
+                // 將相機按鈕添加到圖片按鈕的父容器中
+                imageButtonContainer.appendChild(cameraButton);
+                
+                // 給相機按鈕添加點擊事件
+                cameraButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    console.log("相機按鈕被點擊");
+                    openCameraModal(); // 開啟相機模態框
+                });
+                
+                console.log("相機按鈕已添加到工具欄");
+                
+                // 添加其他工具提示
+                const buttons = toolbar.querySelectorAll('button');
+                const tooltips = {
+                    'bold': '粗體',
+                    'italic': '斜體',
+                    'underline': '底線',
+                    'strike': '刪除線',
+                    'blockquote': '引用',
+                    'code-block': '程式碼區塊',
+                    'link': '插入連結',
+                    'video': '插入影片',
+                    'clean': '清除格式'
+                };
+                
+                buttons.forEach(button => {
+                    const format = button.className.split('-')[1];
+                    if (tooltips[format]) {
+                        button.title = tooltips[format];
+                    }
+                });
+                
+                // 處理選擇器格式
+                const selects = toolbar.querySelectorAll('select');
+                const selectTooltips = {
+                    'header': '標題',
+                    'font': '字型',
+                    'size': '字號',
+                    'color': '文字顏色',
+                    'background': '背景顏色',
+                    'align': '對齊方式'
+                };
+                
+                selects.forEach(select => {
+                    const format = select.className.split('-')[1];
+                    if (selectTooltips[format]) {
+                        const span = select.parentElement.querySelector('span');
+                        if (span) {
+                            span.title = selectTooltips[format];
+                        }
+                    }
+                });
+                
+                console.log("工具欄提示和相機按鈕設置完成");
+            }, 100); // 給工具欄一點時間完成渲染
+            
+        } catch (error) {
+            console.error("添加工具欄提示和按鈕時出錯:", error);
+        }
+    }
+
     // --- 圖片上傳相關函式 (稍後重寫為 ImgBB 版本) ---
     function selectLocalImage() {
         // 檢查是否有 ImgBB API Key
@@ -1151,174 +1377,86 @@ document.addEventListener('DOMContentLoaded', () => {
     // *** 新增：設定 Modal 相關函式 ***
     function openSettingsModal() {
         console.log("開啟設定 Modal");
-        // 讀取已儲存的 Key 並填入輸入框
-        const savedKey = localStorage.getItem(IMGBB_API_KEY_STORAGE_KEY);
-        if (savedKey) {
-            imgbbApiKeyInput.value = savedKey;
-        }
+        const apiKey = localStorage.getItem(IMGBB_API_KEY_STORAGE_KEY) || '';
+        imgbbApiKeyInput.value = apiKey;
         settingsModal.showModal();
     }
 
     function closeSettingsModal() {
         console.log("關閉設定 Modal");
         settingsModal.close();
-        settingsForm.reset(); // 清空表單
-        // 重新載入 input 中的值，避免 reset 清掉剛儲存的
-        const savedKey = localStorage.getItem(IMGBB_API_KEY_STORAGE_KEY);
-        if (savedKey) {
-            imgbbApiKeyInput.value = savedKey;
+    }
+    
+    // 儲存設定
+    function saveSettings(e) {
+        e.preventDefault();
+        const apiKey = imgbbApiKeyInput.value.trim();
+        
+        try {
+            if (apiKey) {
+                localStorage.setItem(IMGBB_API_KEY_STORAGE_KEY, apiKey);
+                console.log("ImgBB API Key 已儲存");
+                showNotification("設定已儲存！", 'success');
+            } else {
+                // 如果清空了 Key，也從 localStorage 移除
+                localStorage.removeItem(IMGBB_API_KEY_STORAGE_KEY);
+                console.log("已清除儲存的 ImgBB API Key");
+                showNotification("已清除 ImgBB API Key 設定。", 'success');
+            }
+            closeSettingsModal();
+        } catch (error) {
+            console.error("儲存設定失敗:", error);
+            showNotification("儲存設定失敗，可能是 localStorage 已滿或被禁用。", 'error');
         }
     }
 
-    // *** 新增：為 Quill 工具列添加 Tooltips ***
-    function addQuillToolbarTooltips(editorContainer) {
-        const toolbar = editorContainer.closest('.ql-container')?.previousElementSibling;
-        if (!toolbar || !toolbar.classList.contains('ql-toolbar')) {
-            console.warn("無法找到 Quill 工具列來添加 tooltips。");
+    // 編輯表單提交處理
+    function handleEditFormSubmit(e) {
+        e.preventDefault();
+        
+        const itemId = editItemId.value;
+        const date = editItemDate.value;
+        const type = editItemType.value;
+        const description = editItemDescription.value;
+        const location = editItemLocation.value;
+        const cost = editItemCost.value ? parseFloat(editItemCost.value) : null;
+        
+        // 檢查必填項
+        if (!date || !type || !description) {
+            showNotification("請填寫所有必填欄位", "error");
             return;
         }
-        console.log("正在為 Quill 工具列添加 tooltips...");
-
-        const tooltips = {
-            // 按鈕
-            '.ql-bold': '粗體 (Ctrl+B)',
-            '.ql-italic': '斜體 (Ctrl+I)',
-            '.ql-underline': '底線 (Ctrl+U)',
-            '.ql-strike': '刪除線',
-            '.ql-list[value="ordered"]': '有序清單',
-            '.ql-list[value="bullet"]': '無序清單',
-            '.ql-script[value="sub"]': '下標',
-            '.ql-script[value="super"]': '上標',
-            '.ql-indent[value="-1"]': '減少縮排',
-            '.ql-indent[value="+1"]': '增加縮排',
-            '.ql-link': '插入連結',
-            '.ql-image': '插入圖片 (從檔案)', // *** 修改提示 ***
-            '.ql-video': '插入影片', // (如果 Quill 有 video 模組)
-            '.ql-camera': '拍照上傳', // *** 新增拍照按鈕提示 ***
-            '.ql-blockquote': '引用塊',
-            '.ql-code-block': '程式碼區塊',
-            '.ql-clean': '清除格式',
-            // 下拉選單標籤 (找到對應的 picker label)
-            '.ql-header .ql-picker-label': '標題大小',
-            '.ql-font .ql-picker-label': '字體',
-            '.ql-size .ql-picker-label': '字型大小',
-            '.ql-color .ql-picker-label': '文字顏色',
-            '.ql-background .ql-picker-label': '背景顏色'
+        
+        // 準備更新資料
+        const itemData = {
+            date: date,
+            type: type,
+            description: description,
+            location: location || null,
+            cost: cost
         };
-
-        for (const selector in tooltips) {
-            const element = toolbar.querySelector(selector);
-            if (element) {
-                element.setAttribute('title', tooltips[selector]);
-            } else {
-                console.warn(`Tooltip selector 未找到元素: ${selector}`);
-            }
-        }
-
-        // --- 特殊處理對齊按鈕/選項 --- 
-        // 處理獨立按鈕 (Quill 2.0 預設)
-        const alignButtons = toolbar.querySelectorAll('.ql-align button');
-        if (alignButtons.length > 0) {
-            console.log("處理獨立對齊按鈕 Tooltips...");
-            alignButtons.forEach(btn => {
-                const value = btn.value || ''; 
-                if (value === 'center') btn.title = '置中對齊';
-                else if (value === 'right') btn.title = '靠右對齊';
-                else if (value === 'justify') btn.title = '兩端對齊';
-                else btn.title = '靠左對齊 (預設)'; 
-            });
+        
+        // 更新資料到 Firebase (如果在離線狀態，Firebase 會暫存並在重新連接時自動同步)
+        if (!activeTripId) {
+            showNotification("無法編輯項目：未載入行程", "error");
+            return;
         }
         
-        // 同時處理下拉選單選項 (以防萬一或自訂工具列)
-        const alignPickerItems = toolbar.querySelectorAll('.ql-align .ql-picker-item');
-        if (alignPickerItems.length > 0) {
-             console.log("處理對齊下拉選單選項 Tooltips...");
-             alignPickerItems.forEach(item => {
-                const value = item.getAttribute('data-value') || '';
-                if (value === 'center') item.title = '置中對齊';
-                else if (value === 'right') item.title = '靠右對齊';
-                else if (value === 'justify') item.title = '兩端對齊';
-                else item.title = '靠左對齊 (預設)';
-             });
-             // 也為下拉選單標籤加上提示
-             const alignPickerLabel = toolbar.querySelector('.ql-align .ql-picker-label');
-             if (alignPickerLabel) {
-                 alignPickerLabel.title = '對齊方式';
-             }
+        if (!isOnline) {
+            incrementPendingWrites();
         }
-        // --- 對齊處理結束 ---
-
-        // 特殊處理 RTL 按鈕 (如果有的話)
-        const rtlButton = toolbar.querySelector('.ql-direction[value="rtl"]');
-        if (rtlButton) {
-            rtlButton.setAttribute('title', '從右至左');
-        }
-         const ltrButton = toolbar.querySelector('.ql-direction:not([value="rtl"])'); // 預設是 LTR
-         if (ltrButton) {
-             ltrButton.setAttribute('title', '從左至右 (預設)');
-         }
-
-        // *** 注意：需要確認 Quill 2.0 如何渲染自訂按鈕，可能需要調整選擇器 ***
-        const cameraButton = toolbar.querySelector('.ql-camera'); 
-        if (cameraButton) { 
-            cameraButton.setAttribute('title', '拍照上傳');
-        } else {
-            console.warn("未找到拍照按鈕 .ql-camera");
-        }
-
-        // *** 新增：手動創建並添加拍照按鈕 ***
-        try {
-            console.log("準備尋找 Quill 工具列的 HTML 結構..."); // *** 新增偵錯 Log ***
-            console.log("Toolbar HTML:", toolbar.innerHTML); // *** 新增偵錯 Log ***
-
-            // 找到包含 'image' 按鈕的那個工具列群組 (.ql-formats)
-            const imageButton = toolbar.querySelector('.ql-image');
-            console.log("找到的 imageButton:", imageButton); // *** 新增偵錯 Log ***
-
-            const buttonGroup = imageButton?.closest('.ql-formats'); 
-            console.log("找到的 buttonGroup (包含 imageButton):", buttonGroup); // *** 新增偵錯 Log ***
-
-            if (buttonGroup) {
-                console.log("進入 buttonGroup 區塊，準備檢查/創建按鈕..."); // *** 新增偵錯 Log ***
-                 // 檢查是否已存在拍照按鈕，避免重複添加
-                 let existingCameraButton = null;
-                 try {
-                    existingCameraButton = buttonGroup.querySelector('.ql-camera');
-                    console.log("檢查現有 .ql-camera 按鈕結果:", existingCameraButton); // *** 新增偵錯 Log ***
-                 } catch (queryError) {
-                    console.error("查詢 .ql-camera 時發生錯誤:", queryError); // *** 新增偵錯 Log ***
-                 }
-                 
-                 if (!existingCameraButton) {
-                     console.log("未找到現有拍照按鈕，開始創建..."); // *** 新增偵錯 Log ***
-                     const cameraButton = document.createElement('button');
-                     cameraButton.setAttribute('type', 'button');
-                     cameraButton.classList.add('ql-camera'); // 使用這個 class 作為標識
-                     cameraButton.innerHTML = '<i class="fa-solid fa-camera"></i>'; // 加入 Font Awesome 圖示
-                     cameraButton.setAttribute('title', '拍照上傳');
- 
-                     // 綁定點擊事件
-                     cameraButton.addEventListener('click', openCameraModal);
- 
-                     // *** 修改：將按鈕插入到群組末尾 ***
-                     try {
-                         buttonGroup.appendChild(cameraButton);
-                         console.log("拍照按鈕已透過 appendChild 添加到工具列群組。"); // *** 修改 Log ***
-                     } catch (appendError) {
-                         console.error("appendChild 拍照按鈕時發生錯誤:", appendError); // *** 新增偵錯 Log ***
-                     }
-                 } else {
-                     console.log("拍照按鈕 (.ql-camera) 已存在於此群組，跳過創建。"); // *** 修改 Log ***
-                 }
-            } else {
-                 // *** 修改錯誤 Log ***
-                 console.warn("未找到包含 .ql-image 按鈕的父層 .ql-formats。無法添加拍照按鈕。"); 
-            }
-        } catch (error) {
-            console.error("添加自訂拍照按鈕時發生錯誤:", error);
-        }
-
-        console.log("Quill 工具列 tooltips 和自訂按鈕添加完成。");
+        
+        const itemRef = db.ref(`trips/${activeTripId}/itineraries/${itemId}`);
+        itemRef.update(itemData)
+            .then(() => {
+                console.log(`行程項目 ${itemId} 更新成功`);
+                showNotification("項目已更新", "success");
+                closeEditModal();
+            })
+            .catch(error => {
+                console.error("更新行程項目失敗:", error);
+                showNotification("更新項目失敗: " + error.message, "error");
+            });
     }
 
     // --- 相機拍照相關函式 ---
@@ -1444,57 +1582,99 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // *** 檢查結束 ***
 
-        setupConnectionListener(); // *** 呼叫連線監聽設定 ***
+        // 初始化主題設定
+        setupThemeToggle();
+
+        // 建立連線監聽與同步功能
+        setupConnectionListener(); 
         populateSavedTripsDropdown(); 
-        updatePendingWritesUI(); // *** 初始化待同步 UI ***
+        updatePendingWritesUI();
 
-        const savedTripId = localStorage.getItem(LAST_TRIP_KEY);
-        if (savedTripId) {
-            console.log(`發現上次儲存的行程 ID: ${savedTripId}，嘗試自動載入...`);
-            loadTrip(savedTripId);
-        } else {
-            console.log("未發現上次儲存的行程 ID。");
-            clearCurrentTripDisplay(); // *** 確保初始狀態乾淨 ***
-        }
+        // 必要的事件監聽器設定
+        createTripBtn.addEventListener('click', createNewTrip); // 修正為正確的函數名稱
+        loadTripBtn.addEventListener('click', function() {
+            const tripId = tripIdInput.value.trim();
+            if (tripId) loadTrip(tripId);
+        });
+        scanQrBtn.addEventListener('click', startScan); // 修正為正確的函數名稱
+        cancelScanBtn.addEventListener('click', stopScan); // 修正為正確的函數名稱
+        savedTripsSelect.addEventListener('change', updateDeleteButtonState);
+        deleteSelectedTripBtn.addEventListener('click', deleteSelectedTrip);
+        // 使用已有的表單處理邏輯，而不是未定義的 handleItineraryFormSubmit 函數
+        itineraryForm.addEventListener('submit', function(e) {
+            e.preventDefault();
 
-        // *** 新增：綁定筆記 Modal 關閉/儲存事件 ***
+            // 基本驗證 (描述是必填的)
+            const descriptionInput = document.getElementById('item-description');
+            descriptionInput.classList.remove('input-error');
+            if (!descriptionInput.value.trim()) {
+                showNotification("請輸入行程描述！", 'error');
+                descriptionInput.classList.add('input-error');
+                descriptionInput.focus();
+                return;
+            }
+
+            if (!activeTripId) {
+                showNotification("請先建立或載入一個行程！", 'error');
+                return;
+            }
+            const submitButton = itineraryForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.setAttribute('aria-busy', 'true');
+
+            const newItem = {
+                dateTime: document.getElementById('item-date').value,
+                type: document.getElementById('item-type').value,
+                description: descriptionInput.value.trim(),
+                location: document.getElementById('item-location').value.trim(),
+                cost: document.getElementById('item-cost').value ? parseFloat(document.getElementById('item-cost').value) : 0,
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+                order: firebase.database.ServerValue.TIMESTAMP
+            };
+            const currentItineraryRef = db.ref(`trips/${activeTripId}/itineraries`);
+            
+            if (!isOnline) {
+                incrementPendingWrites();
+            }
+
+            currentItineraryRef.push(newItem)
+                .then(() => {
+                    showNotification("行程項目已新增！", 'success');
+                    itineraryForm.reset();
+                    descriptionInput.classList.remove('input-error');
+                })
+                .catch((error) => {
+                    console.error(`新增行程項目到 ${activeTripId} 時發生錯誤: `, error);
+                    showNotification("新增項目失敗，請稍後再試。", 'error');
+                })
+                .finally(() => {
+                    submitButton.disabled = false;
+                    submitButton.removeAttribute('aria-busy');
+                });
+        });
+        // toggleQrCodeBtn.addEventListener('click', toggleQrCode); // <--- 移除此行
+        
+        // 表單與對話框功能
+        // 編輯行程項目對話框
+        cancelEditBtn.addEventListener('click', closeEditModal);
+        editForm.addEventListener('submit', handleEditFormSubmit); // <-- 使用正確的變數名稱 editForm
+
+        // 筆記對話框
         cancelNotesBtn.addEventListener('click', closeNotesModal);
         saveNotesBtn.addEventListener('click', saveNotes);
 
-        // *** 新增：綁定設定按鈕和 Modal 事件 ***
+        // 設定對話框
         settingsBtn.addEventListener('click', openSettingsModal);
         cancelSettingsBtn.addEventListener('click', closeSettingsModal);
+        settingsForm.addEventListener('submit', saveSettings);
 
-        settingsForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const apiKey = imgbbApiKeyInput.value.trim();
-            if (apiKey) {
-                try {
-                    localStorage.setItem(IMGBB_API_KEY_STORAGE_KEY, apiKey);
-                    console.log("ImgBB API Key 已儲存");
-                    showNotification("設定已儲存！", 'success');
-                    closeSettingsModal();
-                } catch (error) {
-                    console.error("儲存 ImgBB API Key 失敗:", error);
-                    showNotification("儲存設定失敗，可能是 localStorage 已滿或被禁用。", 'error');
-                }
-            } else {
-                // 如果清空了 Key，也從 localStorage 移除
-                try {
-                    localStorage.removeItem(IMGBB_API_KEY_STORAGE_KEY);
-                    console.log("已清除儲存的 ImgBB API Key");
-                    showNotification("已清除 ImgBB API Key 設定。", 'success');
-                     closeSettingsModal();
-                } catch (error) {
-                     console.error("清除 ImgBB API Key 失敗:", error);
-                     showNotification("清除設定失敗。", 'error');
-                }
-            }
-        });
-
-        // *** 新增：綁定拍照 Modal 事件 ***
-        capturePhotoBtn.addEventListener('click', capturePhoto);
-        cancelCameraBtn.addEventListener('click', closeCameraModal);
+        // 拍照對話框
+        if (document.getElementById('cancel-camera-action-btn')) {
+            document.getElementById('cancel-camera-action-btn').addEventListener('click', closeCameraModal);
+        }
+        if (document.getElementById('capture-photo-btn')) {
+            document.getElementById('capture-photo-btn').addEventListener('click', capturePhoto);
+        }
 
         // *** 新增：綁定匯出 DOCX 按鈕事件 ***
         const exportDocxBtn = document.getElementById('export-notes-docx-btn');
@@ -1502,6 +1682,24 @@ document.addEventListener('DOMContentLoaded', () => {
             exportDocxBtn.addEventListener('click', exportNotesToDocx);
         } else {
             console.warn("未找到匯出 DOCX 按鈕 (export-notes-docx-btn)");
+        }
+
+        // 檢查自動載入
+        const lastTripId = localStorage.getItem('lastActiveTripId');
+        if (lastTripId) {
+            console.log(`發現上次儲存的行程 ID: ${lastTripId}，嘗試自動載入...`);
+            tripIdInput.value = lastTripId;
+            loadTrip(lastTripId);
+        }
+
+        // 掃描相關事件監聽器
+        scanQrBtn.addEventListener('click', startScan); // 修正為正確的函數名稱
+        cancelScanBtn.addEventListener('click', stopScan); // 修正為正確的函數名稱
+        
+        // 新增對 header 中關閉按鈕的監聽
+        const cancelScanHeaderBtn = document.getElementById('cancel-scan-btn-header');
+        if (cancelScanHeaderBtn) {
+            cancelScanHeaderBtn.addEventListener('click', stopScan);
         }
     }
 
@@ -1563,6 +1761,26 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error("匯出 DOCX 時發生錯誤:", error);
             showNotification("匯出筆記失敗，請參閱控制台錯誤訊息。", 'error');
+        }
+    }
+
+    // 更新刪除按鈕的狀態
+    function updateDeleteButtonState() {
+        const selectedTripId = savedTripsSelect.value;
+        if (selectedTripId) {
+            tripIdInput.value = selectedTripId; // 將選中ID填入輸入框
+            deleteSelectedTripBtn.disabled = false; // 啟用刪除按鈕
+        } else {
+            tripIdInput.value = ''; // 清空輸入框
+            deleteSelectedTripBtn.disabled = true; // 禁用刪除按鈕
+        }
+    }
+
+    // 刪除選定的行程
+    function deleteSelectedTrip() {
+        const selectedTripId = savedTripsSelect.value;
+        if (selectedTripId) {
+            removeSavedTrip(selectedTripId);
         }
     }
 });

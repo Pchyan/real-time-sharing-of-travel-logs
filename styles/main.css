@@ -2,6 +2,8 @@
 
 body {
     padding: 20px;
+    scroll-behavior: smooth;
+    line-height: 1.6;
 }
 
 /* 微調 Pico.css 的預設值或添加自訂樣式 */
@@ -357,4 +359,415 @@ body {
 .ql-font .ql-picker-item[data-value="noto-serif-tc"]::before {
     content: "宋體" !important;
     font-family: 'Noto Serif TC', serif;
+}
+
+/* 全域變數 */
+:root {
+  --accent-color: #3498db;
+  --primary-hover: #2980b9;
+  --success-color: #2ecc71;
+  --warning-color: #f39c12;
+  --error-color: #e74c3c;
+  --border-radius: 8px;
+  --transition-speed: 0.3s;
+  --box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  
+  /* Trips Icon Colors */
+  --transport-color: #3498db;
+  --accommodation-color: #9b59b6;
+  --activity-color: #f1c40f;
+  --food-color: #e67e22;
+  --other-color: #95a5a6;
+}
+
+/* 基本元素樣式 */
+body {
+  scroll-behavior: smooth;
+  line-height: 1.6;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin-bottom: 0.5rem;
+}
+
+h2.with-icon i, h3.with-icon i {
+  margin-right: 0.5rem;
+  opacity: 0.8;
+}
+
+.badge {
+  border-radius: 99px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* 卡片與容器 */
+article.trip-info-card {
+  margin-top: 1.5rem;
+  transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+article.trip-info-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--box-shadow);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+
+.trip-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.total-cost-section {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.qrcode-display {
+  margin: 1rem 0;
+  padding: 1rem;
+  border-radius: var(--border-radius);
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: center;
+}
+
+/* 連線狀態 */
+#connection-status.online {
+  background-color: var(--success-color);
+  color: white;
+}
+
+#connection-status.offline {
+  background-color: var(--error-color);
+  color: white;
+}
+
+#pending-writes-indicator {
+  background-color: var(--warning-color);
+  color: white;
+}
+
+/* 行程列表 */
+#itinerary-list {
+  list-style-type: none;
+  padding: 0;
+}
+
+.itinerary-container {
+  margin-top: 1rem;
+  padding: 0 0.25rem;
+}
+
+.sortable-list li {
+  cursor: grab;
+  border-radius: var(--border-radius);
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 1rem;
+  transition: background-color var(--transition-speed);
+}
+
+.sortable-list li:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.sortable-list li:active {
+  cursor: grabbing;
+}
+
+/* 行程類型標記 */
+.item-type-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-right: 0.5rem;
+}
+
+.item-type-transport {
+  background-color: var(--transport-color);
+  color: white;
+}
+
+.item-type-accommodation {
+  background-color: var(--accommodation-color);
+  color: white;
+}
+
+.item-type-activity {
+  background-color: var(--activity-color);
+  color: black;
+}
+
+.item-type-food {
+  background-color: var(--food-color);
+  color: white;
+}
+
+.item-type-other {
+  background-color: var(--other-color);
+  color: white;
+}
+
+/* 方向連結樣式 */
+.directions-link-container {
+  padding: 0.5rem;
+  margin-bottom: 0.75rem;
+  text-align: center;
+  border-left: 3px dashed rgba(0, 0, 0, 0.1);
+  border-right: 3px dashed rgba(0, 0, 0, 0.1);
+}
+
+.directions-link-container a {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  opacity: 0.75;
+  transition: opacity var(--transition-speed);
+}
+
+.directions-link-container a:hover {
+  opacity: 1;
+}
+
+/* 攝像頭和掃描容器 */
+.camera-container, .scan-container {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  margin: 1rem auto;
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  box-shadow: var(--box-shadow);
+}
+
+.camera-container video, .scan-container video {
+  width: 100%;
+  height: auto;
+  display: block;
+  background-color: #333;
+}
+
+/* 通知樣式 */
+.alert {
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.alert.success {
+  background-color: rgba(46, 204, 113, 0.1);
+  border: 1px solid var(--success-color);
+}
+
+.alert.error {
+  background-color: rgba(231, 76, 60, 0.1);
+  border: 1px solid var(--error-color);
+}
+
+.alert.warning {
+  background-color: rgba(243, 156, 18, 0.1);
+  border: 1px solid var(--warning-color);
+}
+
+/* 動畫 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+/* 響應式調整 */
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .action-buttons {
+    margin-top: 0.5rem;
+    justify-content: flex-start;
+  }
+  
+  h1 {
+    font-size: 1.5rem;
+  }
+  
+  article.trip-info-card footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 576px) {
+  nav ul li {
+    margin-left: 0.5rem;
+  }
+  
+  #total-cost-display {
+    font-size: 0.9rem;
+  }
+}
+
+/* 無障礙增強 */
+:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* 主題選擇器 */
+.theme-selector {
+  margin-left: 1rem;
+}
+
+.theme-selector select {
+  margin: 0;
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--border-radius);
+  background-color: var(--pico-background-color);
+  color: var(--pico-color);
+  border: 1px solid var(--pico-form-element-border-color);
+  cursor: pointer;
+}
+
+/* 淺色主題 (預設) */
+:root, [data-theme="light"] {
+  --pico-text-selection-color: rgba(24, 144, 255, 0.2);
+  
+  /* 保留預設的淺色系變數，不需要設置 */
+}
+
+/* 深色主題 */
+[data-theme="dark"] {
+  --pico-background-color: #12151a;
+  --pico-color: #e3e3e3;
+  --pico-secondary: #a0aab5; 
+  --pico-card-background-color: #1d2026;
+  --pico-card-border-color: #303b44;
+  --pico-form-element-background-color: #282c34;
+  --pico-form-element-border-color: #3d4555;
+  --pico-form-element-focus-border-color: var(--pico-primary);
+  --pico-primary-inverse: #FFF;
+  --pico-secondary-inverse: #FFF;
+  --pico-contrast-inverse: #000; 
+
+  /* 深色特定樣式 */
+  .directions-link-container {
+    border-left: 3px dashed rgba(255, 255, 255, 0.1);
+    border-right: 3px dashed rgba(255, 255, 255, 0.1);
+  }
+
+  .ql-toolbar .ql-picker-label svg, 
+  .ql-toolbar button svg {
+    fill: var(--pico-color) !important;
+  }
+}
+
+/* 紫色主題 */
+[data-theme="purple"] {
+  --pico-background-color: #f9f5ff;
+  --pico-color: #4b1d89;
+  --pico-secondary: #6c4998;
+  --pico-card-background-color: #ffffff;
+  --pico-card-border-color: #d9c5f7;
+  --pico-form-element-background-color: #ffffff;
+  --pico-form-element-border-color: #d9c5f7;
+  --pico-form-element-focus-border-color: #8a2be2;
+  --pico-primary: #8a2be2;
+  --pico-primary-hover: #7120bc;
+  --pico-primary-focus: rgba(138, 43, 226, 0.25);
+  --pico-primary-inverse: #FFF;
+
+  /* 紫色特定樣式 */
+  .directions-link-container {
+    border-left: 3px dashed rgba(138, 43, 226, 0.2);
+    border-right: 3px dashed rgba(138, 43, 226, 0.2);
+  }
+  
+  .badge {
+    background-color: #8a2be2;
+    color: white;
+  }
+
+  #connection-status.online {
+    background-color: #8a2be2;
+  }
+}
+
+/* 綠色主題 */
+[data-theme="green"] {
+  --pico-background-color: #f4fff9;
+  --pico-color: #146934;
+  --pico-secondary: #2a7a4b;
+  --pico-card-background-color: #ffffff;
+  --pico-card-border-color: #c5f7d9;
+  --pico-form-element-background-color: #ffffff;
+  --pico-form-element-border-color: #c5f7d9;
+  --pico-form-element-focus-border-color: #08a045;
+  --pico-primary: #08a045;
+  --pico-primary-hover: #078f3e;
+  --pico-primary-focus: rgba(8, 160, 69, 0.25);
+  --pico-primary-inverse: #FFF;
+
+  /* 綠色特定樣式 */
+  .directions-link-container {
+    border-left: 3px dashed rgba(8, 160, 69, 0.2);
+    border-right: 3px dashed rgba(8, 160, 69, 0.2);
+  }
+  
+  .badge {
+    background-color: #08a045;
+    color: white;
+  }
+
+  #connection-status.online {
+    background-color: #08a045;
+  }
+}
+
+/* 藍色主題 */
+[data-theme="blue"] {
+  --pico-background-color: #f0f8ff;
+  --pico-color: #0c4a89;
+  --pico-secondary: #2371b7;
+  --pico-card-background-color: #ffffff;
+  --pico-card-border-color: #c5e0f7;
+  --pico-form-element-background-color: #ffffff;
+  --pico-form-element-border-color: #c5e0f7;
+  --pico-form-element-focus-border-color: #0277bd;
+  --pico-primary: #0277bd;
+  --pico-primary-hover: #01579b;
+  --pico-primary-focus: rgba(2, 119, 189, 0.25);
+  --pico-primary-inverse: #FFF;
+
+  /* 藍色特定樣式 */
+  .directions-link-container {
+    border-left: 3px dashed rgba(2, 119, 189, 0.2);
+    border-right: 3px dashed rgba(2, 119, 189, 0.2);
+  }
+  
+  .badge {
+    background-color: #0277bd;
+    color: white;
+  }
+
+  #connection-status.online {
+    background-color: #0277bd;
+  }
 } 
