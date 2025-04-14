@@ -18,6 +18,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
     <!-- 未來可以加入 CSS 樣式表連結 -->
     <!-- <link rel="stylesheet" href="styles/main.css"> -->
+    <!-- *** 新增：FileSaver.js *** -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- *** 新增：html-docx-js *** -->
+    <script src="https://unpkg.com/html-docx-js@0.3.1/dist/html-docx.js"></script>
 </head>
 <body>
     <h1>
@@ -62,6 +66,11 @@
             <strong><i class="fa-solid fa-route"></i> 目前行程:</strong>
             (<span id="current-trip-name"></span>) ID: <span id="current-trip-id">尚未載入</span>
             <button id="toggle-qrcode-btn" style="margin-left: 10px; display: none;" title="顯示/隱藏 QR Code"><i class="fa-solid fa-qrcode"></i></button>
+        </div>
+        <!-- *** 新增：總花費顯示區域 *** -->
+        <div style="margin-top: 5px;">
+            <strong><i class="fa-solid fa-coins"></i> 總預計花費:</strong> 
+            <span id="total-cost-display">--</span>
         </div>
         <!-- 加入 QR Code 容器 (預設隱藏) -->
         <div id="qrcode-container" style="margin-top: 10px; display: none;"></div>
@@ -133,7 +142,7 @@
     <!-- <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script> --> <!-- *** 新增：加入 Storage SDK *** -->
 
     <!-- Firebase 設定檔 -->
-    <script src="js/firebase-config.js"></script>
+    <script src="js/firebase-config.js" defer></script>
 
     <!-- QR Code 產生函式庫 -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
@@ -193,17 +202,18 @@
     <dialog id="notes-modal">
         <article>
             <header>
-                <a href="#close" aria-label="Close" class="close" id="cancel-notes-btn"></a>
+                <a href="#close" aria-label="Close" class="close" id="cancel-notes-btn-header-equivalent"></a>
                 編輯行程筆記
             </header>
-            <input type="hidden" id="notes-item-id"> <!-- 儲存目前編輯的項目ID -->
-            <div id="notes-editor-container">
-                <div id="notes-editor" style="min-height: 200px; border: 1px solid var(--form-element-border-color);">
-                    <!-- Quill 編輯器將會附加在這裡 -->
-                </div>
+            <input type="hidden" id="notes-item-id">
+            <div id="notes-editor" style="min-height: 200px; border: 1px solid var(--pico-form-field-border-color); margin-bottom: 1rem;">
+                <!-- Quill editor will attach here -->
             </div>
             <footer>
-                 <button id="save-notes-btn">儲存筆記</button>
+                <button id="save-notes-btn"><i class="fa-solid fa-save"></i> 儲存筆記</button>
+                <!-- *** 新增匯出按鈕 *** -->
+                <button id="export-notes-docx-btn" class="secondary"><i class="fa-solid fa-file-word"></i> 匯出 DOCX</button>
+                <button id="cancel-notes-btn" class="secondary outline">取消</button>
             </footer>
         </article>
     </dialog>

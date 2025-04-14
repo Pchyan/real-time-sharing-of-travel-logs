@@ -1429,6 +1429,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 初始狀態 ---
     function initializeApp() {
         console.log("頁面初始化完成，設定連線監聽、載入已存列表並檢查自動載入...");
+
+        // *** 新增：在初始化早期檢查函式庫 ***
+        console.log("檢查外部函式庫載入狀態...");
+        if (typeof saveAs === 'function') {
+            console.log("FileSaver.js (saveAs) 已載入。");
+        } else {
+            console.warn("FileSaver.js (saveAs) 未載入或未正確定義!");
+        }
+        if (typeof htmlDocx !== 'undefined') {
+             console.log("html-docx-js (htmlDocx) 已載入。");
+        } else {
+             console.warn("html-docx-js (htmlDocx) 未載入或未正確定義!");
+        }
+        // *** 檢查結束 ***
+
         setupConnectionListener(); // *** 呼叫連線監聽設定 ***
         populateSavedTripsDropdown(); 
         updatePendingWritesUI(); // *** 初始化待同步 UI ***
@@ -1480,9 +1495,76 @@ document.addEventListener('DOMContentLoaded', () => {
         // *** 新增：綁定拍照 Modal 事件 ***
         capturePhotoBtn.addEventListener('click', capturePhoto);
         cancelCameraBtn.addEventListener('click', closeCameraModal);
+
+        // *** 新增：綁定匯出 DOCX 按鈕事件 ***
+        const exportDocxBtn = document.getElementById('export-notes-docx-btn');
+        if (exportDocxBtn) {
+            exportDocxBtn.addEventListener('click', exportNotesToDocx);
+        } else {
+            console.warn("未找到匯出 DOCX 按鈕 (export-notes-docx-btn)");
+        }
     }
 
     initializeApp(); // 執行初始化
+
+    // --- 匯出筆記為 DOCX --- 
+    function exportNotesToDocx() {
+        if (!quill) {
+            console.error("無法匯出：Quill 編輯器未初始化。");
+            showNotification("編輯器未載入，無法匯出筆記。", 'error');
+            return;
+        }
+        if (typeof htmlDocx === 'undefined' || typeof saveAs === 'undefined') {
+            console.error("無法匯出：html-docx-js 或 FileSaver.js 未載入。");
+            showNotification("匯出功能元件未載入，請檢查網路連線或重新整理。", 'error');
+            return;
+        }
+
+        try {
+            console.log("開始匯出筆記為 DOCX...");
+            const notesHtml = quill.root.innerHTML;
+            const content = `
+                <!DOCTYPE html>
+                <html lang="zh-TW">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>行程筆記</title>
+                    <style>
+                        /* 可選：添加一些基本樣式，例如字體 */
+                        body { font-family: 'Noto Sans TC', sans-serif; }
+                    </style>
+                </head>
+                <body>
+                    ${notesHtml}
+                </body>
+                </html>
+            `;
+
+            const converted = htmlDocx.asBlob(content);
+            console.log("DOCX Blob 已產生，準備觸發下載...");
+
+            // 從筆記 modal 或目前行程名稱獲取一個更有意義的檔名
+            const itemId = notesItemIdInput.value; // 獲取目前開啟的 item ID
+            let fileName = '行程筆記.docx';
+            if (activeTripId && itemId) {
+                // 嘗試從列表項目文字中提取部分描述 (需要 DOM 操作)
+                const listItem = itineraryList.querySelector(`li[data-id="${itemId}"] span`);
+                const itemText = listItem ? listItem.textContent.split(':')[1]?.trim().substring(0, 20) : `項目_${itemId.substring(itemId.length - 4)}`;
+                const tripNamePart = currentTripNameSpan.textContent ? currentTripNameSpan.textContent.substring(0, 10) : activeTripId.substring(activeTripId.length - 4);
+                fileName = `${tripNamePart}_${itemText}.docx`.replace(/[\\/:*?"<>|]/g, '_'); // 清理檔名中的非法字元
+            } else if (currentTripNameSpan.textContent) {
+                 fileName = `${currentTripNameSpan.textContent}_筆記.docx`.replace(/[\\/:*?"<>|]/g, '_');
+            } 
+            
+            saveAs(converted, fileName);
+            console.log(`檔案 ${fileName} 下載已觸發。`);
+            showNotification("筆記已開始匯出為 DOCX 檔案。", 'success');
+
+        } catch (error) {
+            console.error("匯出 DOCX 時發生錯誤:", error);
+            showNotification("匯出筆記失敗，請參閱控制台錯誤訊息。", 'error');
+        }
+    }
 });
 
 // --- Firestore 版本的函式 (已不再使用，保留供參考) ---
