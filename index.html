@@ -48,12 +48,14 @@
             <span id="loading-indicator" style="margin-left: 10px; display: none;">載入中...</span>
         </div>
         <br>
-        <div>
-            <label for="saved-trips-select">選擇已存行程:</label>
+        <div class="grid">
             <select id="saved-trips-select">
                 <option value="">-- 無已存行程 --</option>
             </select>
-            <button id="delete-selected-trip-btn" style="margin-left: 5px;" disabled title="刪除選定的已存行程"><i class="fa-solid fa-trash-can"></i></button>
+            <div>
+                <button id="delete-selected-trip-btn" class="secondary" disabled title="從此瀏覽器移除選擇的行程記錄"><i class="fa-solid fa-trash-can"></i></button>
+                <button id="settings-btn" class="secondary outline" title="設定"><i class="fa-solid fa-gear"></i></button>
+            </div>
         </div>
         <br>
         <div>
@@ -128,7 +130,7 @@
     <!-- <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script> --> <!-- 暫時註解掉 Firestore -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script> <!-- 加入 Realtime Database -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script> <!-- *** 新增：加入 Storage SDK *** -->
+    <!-- <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script> --> <!-- *** 新增：加入 Storage SDK *** -->
 
     <!-- Firebase 設定檔 -->
     <script src="js/firebase-config.js"></script>
@@ -202,6 +204,44 @@
             </div>
             <footer>
                  <button id="save-notes-btn">儲存筆記</button>
+            </footer>
+        </article>
+    </dialog>
+
+    <!-- *** 新增：設定 Modal *** -->
+    <dialog id="settings-modal">
+        <article>
+            <header>
+                <a href="#close" aria-label="Close" class="close" id="cancel-settings-btn"></a>
+                <i class="fa-solid fa-gear"></i> 設定
+            </header>
+            <form id="settings-form">
+                <label for="imgbb-api-key-input">
+                    ImgBB API Key
+                    <input type="text" id="imgbb-api-key-input" name="imgbb-api-key" placeholder="請輸入您的 ImgBB API v1 金鑰">
+                    <small>用於在筆記中上傳圖片。請至 <a href="https://api.imgbb.com/" target="_blank">ImgBB API</a> 網站申請。</small>
+                </label>
+                <footer>
+                    <button type="submit" id="save-settings-btn">儲存設定</button>
+                </footer>
+            </form>
+        </article>
+    </dialog>
+
+    <!-- *** 新增：拍照 Modal *** -->
+    <dialog id="camera-modal">
+        <article>
+            <header>
+                <a href="#close" aria-label="Close" class="close" id="cancel-camera-btn"></a>
+                <i class="fa-solid fa-camera"></i> 拍照上傳
+            </header>
+            <div style="position: relative;">
+                <video id="camera-view" autoplay playsinline style="width: 100%; max-height: 60vh; border: 1px solid var(--muted-border-color); background-color: #333;"></video>
+                <canvas id="camera-canvas" style="display: none;"></canvas> <!-- 隱藏的 Canvas -->
+            </div>
+            <p id="camera-feedback" style="text-align: center; min-height: 1.5em;"></p>
+            <footer>
+                <button id="capture-photo-btn" class="contrast"><i class="fa-solid fa-circle-camera"></i> 拍照</button>
             </footer>
         </article>
     </dialog>

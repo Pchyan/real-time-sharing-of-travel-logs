@@ -260,6 +260,24 @@ body {
     background-color: var(--primary-hover, #ddd) !important;
 }
 
+/* --- 修正：確保對齊圖示正確顯示 --- */
+.ql-toolbar .ql-align .ql-picker-item {
+    /* 移除可能導致問題的 font-size: 0 */
+    font-size: initial !important; 
+    /* 確保 SVG 可見 */
+    color: var(--color, #333) !important; 
+    width: auto !important; /* 允許 SVG 決定寬度 */
+    padding: 2px !important; /* 稍微減少內邊距，讓圖示更緊湊 */
+}
+
+.ql-toolbar .ql-align .ql-picker-item svg {
+    width: initial !important; /* 使用 SVG 原始寬度 */
+    height: initial !important; /* 使用 SVG 原始高度 */
+    display: inline-block !important; /* 確保 SVG 正確顯示 */
+    vertical-align: middle;
+}
+/* --- 對齊圖示修正結束 --- */
+
 /* 編輯器區域 */
 #notes-editor {
     background-color: var(--form-element-background-color, #fff); /* 設定背景色 */

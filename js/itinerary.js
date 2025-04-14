@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let pendingWritesCount = 0; // *** 新增：待同步計數器 ***
     const SAVED_TRIPS_KEY = 'savedTrips'; // localStorage key for saved trips
     const LAST_TRIP_KEY = 'lastActiveTripId'; // localStorage key for last trip
+    const IMGBB_API_KEY_STORAGE_KEY = 'imgbbApiKey'; // localStorage Key
 
     // *** 新增：獲取筆記 Modal 相關元素 ***
     const notesModal = document.getElementById('notes-modal');
@@ -45,17 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // *** 新增：Quill 編輯器實例變數 ***
     let quill = null;
-
-    // *** 新增：獲取 Firebase Storage 實例 ***
-    let storage = null;
-    try {
-        storage = firebase.storage();
-        console.log("Firebase Storage instance obtained.");
-    } catch (error) {
-        console.error("Failed to get Firebase Storage instance:", error);
-        showNotification("無法初始化圖片上傳功能。", "error");
-        // 如果 Storage 無法使用，後續相關功能會失敗
-    }
+    // *** 新增：追蹤筆記是否有未儲存的變更 ***
+    let notesChangedSinceLoad = false;
 
     // --- 取得 HTML 元素 ---
     // 行程管理區
@@ -102,6 +94,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // 連線狀態元素
     const connectionStatusSpan = document.getElementById('connection-status');
     const pendingWritesIndicator = document.getElementById('pending-writes-indicator');
+
+    // *** 新增：獲取設定 Modal 相關元素 ***
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const settingsForm = document.getElementById('settings-form');
+    const imgbbApiKeyInput = document.getElementById('imgbb-api-key-input');
+    const saveSettingsBtn = document.getElementById('save-settings-btn'); // 已在 form submit 中處理
+    const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
+
+    // *** 新增：獲取拍照 Modal 相關元素 ***
+    const cameraModal = document.getElementById('camera-modal');
+    const cameraView = document.getElementById('camera-view');
+    const cameraCanvas = document.getElementById('camera-canvas');
+    const cameraFeedback = document.getElementById('camera-feedback');
+    const capturePhotoBtn = document.getElementById('capture-photo-btn');
+    const cancelCameraBtn = document.getElementById('cancel-camera-btn');
+
+    // --- 全域變數 ---
+    let currentCameraStream = null; // *** 新增：追蹤目前相機流 ***
 
     // --- 通知函式 ---
     function showNotification(message, type = 'success') { // type 可以是 'success' 或 'error'
@@ -857,130 +868,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // *** 新增：圖片上傳相關函式 ***
-    function selectLocalImage() {
-        if (!storage) {
-            showNotification("圖片上傳功能未初始化。", "error");
-            return;
-        }
-        if (!activeTripId) {
-            showNotification("請先載入行程以啟用圖片上傳。", "error");
-            return;
-        }
-        // 創建一個隱藏的 file input
-        const input = document.createElement('input');
-        input.setAttribute('type', 'file');
-        input.setAttribute('accept', 'image/*');
-        input.style.display = 'none'; // 保持隱藏
-        document.body.appendChild(input); // 需要添加到 DOM 才能觸發事件
-
-        input.click(); // 觸發檔案選擇對話框
-
-        input.onchange = () => {
-            const file = input.files[0];
-            if (file) {
-                console.log("選取的圖片:", file.name);
-                // 獲取當前選區，true 表示即使失焦也獲取
-                const range = quill.getSelection(true);
-                // 插入提示文字
-                quill.insertText(range.index, '\n[圖片上傳中...]\n', { 'color': 'grey', 'italic': true });
-                quill.setSelection(range.index + '\n[圖片上傳中...]\n'.length); // 將游標移到提示後
-                // 開始上傳
-                uploadImage(file, range.index);
-            } else {
-                console.log("未選擇檔案。");
-            }
-            // 移除 input 元素
-            document.body.removeChild(input);
-        };
-
-        // 如果使用者取消了檔案選擇，也要移除 input
-        // 注意：oncancel 事件支援度不佳，改用 focus/blur 技巧判斷
-        // 一個簡單的方式是，如果 onchange 沒有在短時間內觸發，就假設被取消了
-        // 這裡我們先不處理取消的狀況，僅在選擇後移除 input
-    }
-
-    function uploadImage(file, insertionIndex) {
-        if (!activeTripId || !storage) {
-            console.error("uploadImage: Cannot upload - activeTripId or storage missing.");
-            showNotification("圖片上傳失敗。", 'error');
-            if (quill) {
-                try {
-                    const lengthToDelete = '\n[圖片上傳中...]\n'.length;
-                    quill.deleteText(insertionIndex, lengthToDelete);
-                } catch(e) { console.error("uploadImage: Error removing placeholder on initial check fail", e); }
-            }
-            return;
-        }
-
-        const timestamp = Date.now();
-        const imageName = `${timestamp}_${file.name}`;
-        const storageRef = storage.ref(`trip_images/${activeTripId}/${imageName}`);
-
-        console.log(`uploadImage: Starting upload to: ${storageRef.fullPath}`);
-        const uploadTask = storageRef.put(file); // 使用 Compat SDK 的 put 方法
-
-        // 監聽上傳狀態
-        uploadTask.on('state_changed',
-            (snapshot) => {
-                // 進度回調
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                console.log(`uploadImage: Progress - ${progress}% done`);
-            },
-            (error) => {
-                // 錯誤回調
-                console.error("uploadImage: Upload Error Callback Fired.", error); // 明確記錄錯誤回調
-                showNotification(`圖片上傳失敗: ${error.code || error.message}`, 'error');
-                if (quill) {
-                    try {
-                        const lengthToDelete = '\n[圖片上傳中...]\n'.length;
-                        console.log(`uploadImage: Error - Attempting to delete placeholder at index ${insertionIndex}, length ${lengthToDelete}`);
-                        quill.deleteText(insertionIndex, lengthToDelete);
-                    } catch (deleteError) {
-                         console.error("uploadImage: Error - Failed to delete placeholder:", deleteError);
-                    }
-                }
-            },
-            () => {
-                // 完成回調
-                console.log("uploadImage: Completion Callback Fired."); // 明確記錄完成回調
-                uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
-                    console.log('uploadImage: getDownloadURL() Success. URL:', downloadURL); // 明確記錄獲取 URL 成功
-                    if (quill) {
-                        try {
-                            const lengthToDelete = '\n[圖片上傳中...]\n'.length;
-                            console.log(`uploadImage: Completion - Attempting to delete placeholder at index ${insertionIndex}, length ${lengthToDelete}`);
-                            quill.deleteText(insertionIndex, lengthToDelete);
-                            console.log(`uploadImage: Completion - Attempting to insert image at index ${insertionIndex}`);
-                            quill.insertEmbed(insertionIndex, 'image', downloadURL);
-                            quill.setSelection(insertionIndex + 1); // 將游標移到圖片後
-                            showNotification("圖片已插入。", "success");
-                            console.log("uploadImage: Completion - Image inserted successfully."); // 明確記錄插入成功
-                        } catch (embedError) {
-                            console.error("uploadImage: Completion - Error deleting placeholder or embedding image:", embedError);
-                            showNotification("插入圖片時出錯。", "error");
-                        }
-                    } else {
-                         console.error("uploadImage: Completion - Quill instance missing, cannot insert image.");
-                    }
-                }).catch((error) => {
-                     console.error("uploadImage: getDownloadURL() Error Callback Fired.", error); // 明確記錄獲取 URL 失敗
-                     showNotification("無法取得圖片 URL。", 'error');
-                     if (quill) {
-                        try {
-                            const lengthToDelete = '\n[圖片上傳中...]\n'.length;
-                            console.log(`uploadImage: getDownloadURL Error - Attempting to delete placeholder at index ${insertionIndex}, length ${lengthToDelete}`);
-                            quill.deleteText(insertionIndex, lengthToDelete);
-                        } catch (deleteError) {
-                             console.error("uploadImage: getDownloadURL Error - Failed to delete placeholder:", deleteError);
-                        }
-                     }
-                });
-            }
-        );
-         console.log("uploadImage: Listener attached to upload task."); // 確認監聽器已附加
-    }
-
     // --- 筆記 Modal 相關函式 ---
     function openNotesModal(itemId) {
         console.log(`準備開啟筆記 Modal，項目 ID: ${itemId}`);
@@ -1013,24 +900,24 @@ document.addEventListener('DOMContentLoaded', () => {
                                 [{ 'indent': '-1'}, { 'indent': '+1' }],
                                 [{ 'direction': 'rtl' }],
                                 [{ 'align': [] }],
-                                ['link', 'image', 'blockquote', 'code-block'],
+                                ['link', 'image', 'video', 'blockquote', 'code-block'], 
                                 ['clean']
                             ],
                             handlers: {
-                                'image': selectLocalImage // 指定自訂處理器
+                                'image': selectLocalImage // 處理檔案選擇
                             }
                         }
                     },
                     theme: 'snow'
                 });
-                 console.log("Quill 編輯器已初始化 (含自訂圖片處理，移除表格支援)");
+                 console.log("Quill 編輯器已初始化 (準備手動添加拍照按鈕)"); // *** 修改 Log ***
+                 addQuillToolbarTooltips(notesEditorContainer); // *** 現在由這個函式負責添加按鈕 ***
+                 // ... (text-change 監聽器不變) ...
             } catch (error) {
-                console.error("初始化 Quill 編輯器實例失敗:", error);
+                 console.error("初始化 Quill 編輯器實例失敗:", error);
                 showNotification("無法載入筆記編輯器", "error");
                 quill = null; 
-                // 即使初始化失敗，Modal 已經嘗試開啟了，這裡不需要 return
-                // 但可能需要關閉 Modal 或顯示錯誤訊息在 Modal 內
-                closeNotesModal(); // 初始化失敗時關閉已開啟的 Modal
+                closeNotesModal(); 
                 return;
             }
         }
@@ -1083,6 +970,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function closeNotesModal() {
+        // *** 新增：檢查是否有未儲存的變更 ***
+        console.log(`closeNotesModal: 檢查 notesChangedSinceLoad，目前值: ${notesChangedSinceLoad}`); // *** 偵錯 ***
+        if (notesChangedSinceLoad) {
+            if (!confirm("您有未儲存的變更，確定要關閉嗎？")) {
+                console.log("使用者取消關閉 (有變更)");
+                return; // 如果使用者取消，則不關閉
+            }
+            console.log("使用者確認關閉 (有變更)");
+        }
+
         console.log("關閉筆記 Modal");
         notesModal.close();
         notesItemIdInput.value = '';
@@ -1090,6 +987,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (quill) {
             quill.setContents([]);
         }
+        notesChangedSinceLoad = false;
+        console.log("變更標記已重設 (關閉後)");
     }
 
     function saveNotes() {
@@ -1124,24 +1023,466 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    // --- 初始狀態 ---
-    console.log("頁面初始化完成，設定連線監聽、載入已存列表並檢查自動載入...");
-    setupConnectionListener(); // *** 呼叫連線監聽設定 ***
-    populateSavedTripsDropdown(); 
-    updatePendingWritesUI(); // *** 初始化待同步 UI ***
+    // --- 圖片上傳相關函式 (稍後重寫為 ImgBB 版本) ---
+    function selectLocalImage() {
+        // 檢查是否有 ImgBB API Key
+        const apiKey = localStorage.getItem(IMGBB_API_KEY_STORAGE_KEY);
+        if (!apiKey) {
+            showNotification("請先在設定中輸入 ImgBB API Key 以啟用圖片上傳。", "error");
+            openSettingsModal(); // 引導使用者去設定
+            return;
+        }
+        // ... (後續選擇檔案的邏輯類似，但上傳目標改為 ImgBB API) ...
+        console.log("準備使用 ImgBB 上傳..."); 
+        // 暫時保留舊的 file input 邏輯框架，但 uploadImage 會被替換
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.style.display = 'none';
+        document.body.appendChild(input);
+        input.click();
+        input.onchange = () => {
+            const file = input.files[0];
+            if (file) {
+                console.log("選取的圖片:", file.name);
+                const range = quill.getSelection(true);
+                quill.insertText(range.index, '\n[圖片上傳中(ImgBB)...]\n', { 'color': 'grey', 'italic': true });
+                quill.setSelection(range.index + '\n[圖片上傳中(ImgBB)...]\n'.length); 
+                uploadImageToImgBB(file, range.index, apiKey); // *** 呼叫新的上傳函式 ***
+            } else {
+                console.log("未選擇檔案。");
+            }
+            document.body.removeChild(input);
+        };
 
-    const savedTripId = localStorage.getItem(LAST_TRIP_KEY);
-    if (savedTripId) {
-        console.log(`發現上次儲存的行程 ID: ${savedTripId}，嘗試自動載入...`);
-        loadTrip(savedTripId);
-    } else {
-        console.log("未發現上次儲存的行程 ID。");
-        clearCurrentTripDisplay(); // *** 確保初始狀態乾淨 ***
     }
 
-    // *** 新增：綁定筆記 Modal 關閉/儲存事件 ***
-    cancelNotesBtn.addEventListener('click', closeNotesModal);
-    saveNotesBtn.addEventListener('click', saveNotes);
+    // *** 新增：上傳到 ImgBB 的函式 ***
+    function uploadImageToImgBB(file, insertionIndex, apiKey) {
+         console.log(`uploadImageToImgBB: Uploading ${file.name} using key ${apiKey.substring(0, 4)}...`);
+         const placeholderText = '\n[圖片上傳中(ImgBB)...]\n';
+         const placeholderLength = placeholderText.length;
+
+         // 1. 使用 FileReader 將圖片轉為 Base64
+         const reader = new FileReader();
+         reader.onload = (e) => {
+             const base64Image = e.target.result.split(',')[1]; // 取出 Base64 部分
+             if (!base64Image) {
+                  console.error("uploadImageToImgBB: Failed to read file as Base64.");
+                  showNotification("讀取圖片檔失敗。", 'error');
+                  if (quill) quill.deleteText(insertionIndex, placeholderLength); 
+                  return;
+             }
+
+             // 2. 建立 FormData
+             const formData = new FormData();
+             formData.append('key', apiKey);
+             formData.append('image', base64Image);
+             // 可以選擇性地添加其他參數，例如設定圖片自動刪除時間
+             // formData.append('expiration', 600); // 範例：10 分鐘後刪除
+             // formData.append('name', file.name); // 可選：指定檔案名稱
+
+             console.log("uploadImageToImgBB: Sending request to ImgBB API...");
+
+             // 3. 使用 fetch API 發送請求
+             fetch('https://api.imgbb.com/1/upload', {
+                 method: 'POST',
+                 body: formData
+             })
+             .then(response => {
+                 console.log(`uploadImageToImgBB: Received response with status: ${response.status}`);
+                 if (!response.ok) {
+                     // 如果 HTTP 狀態碼不是 2xx，拋出錯誤以便 catch 處理
+                     throw new Error(`ImgBB API Error: ${response.statusText} (Status: ${response.status})`);
+                 }
+                 return response.json(); // 解析 JSON 回應
+             })
+             .then(data => {
+                 console.log("uploadImageToImgBB: ImgBB API Response Data:", data);
+                 // 4. 處理回應
+                 if (data.success && data.data && data.data.url) {
+                     const imageUrl = data.data.url;
+                     console.log("uploadImageToImgBB: Upload successful. Image URL:", imageUrl);
+                     // 5. 更新 Quill 編輯器
+                     if (quill) {
+                         try {
+                             quill.deleteText(insertionIndex, placeholderLength);
+                             quill.insertEmbed(insertionIndex, 'image', imageUrl);
+                             quill.setSelection(insertionIndex + 1); 
+                             showNotification("圖片已透過 ImgBB 插入。", "success");
+                         } catch (embedError) {
+                             console.error("uploadImageToImgBB: Error deleting placeholder or embedding image:", embedError);
+                             showNotification("插入圖片時出錯。", "error");
+                         }
+                     } else {
+                         console.error("uploadImageToImgBB: Quill instance missing after upload.");
+                     }
+                 } else {
+                     // ImgBB 返回的資料表明失敗
+                     const errorMessage = data.error?.message || 'ImgBB 返回未知錯誤'
+                     console.error("uploadImageToImgBB: ImgBB API reported failure:", errorMessage, data);
+                     showNotification(`圖片上傳失敗: ${errorMessage}`, 'error');
+                     if (quill) quill.deleteText(insertionIndex, placeholderLength); 
+                 }
+             })
+             .catch(error => {
+                 // 6. 處理 fetch 錯誤或前面拋出的錯誤
+                 console.error("uploadImageToImgBB: Fetch Error or API Error:", error);
+                 showNotification(`圖片上傳時發生網路或 API 錯誤: ${error.message}`, 'error');
+                 if (quill) {
+                      try { quill.deleteText(insertionIndex, placeholderLength); } catch(e) {}
+                 }
+             });
+         };
+
+         reader.onerror = (error) => {
+            console.error("uploadImageToImgBB: FileReader error:", error);
+            showNotification("讀取圖片檔時發生錯誤。", 'error');
+            if (quill) { 
+                try { quill.deleteText(insertionIndex, placeholderLength); } catch(e) {}
+            }
+         };
+
+         // 開始讀取檔案
+         reader.readAsDataURL(file);
+         console.log("uploadImageToImgBB: Started reading file with FileReader.");
+    }
+
+    // *** 新增：設定 Modal 相關函式 ***
+    function openSettingsModal() {
+        console.log("開啟設定 Modal");
+        // 讀取已儲存的 Key 並填入輸入框
+        const savedKey = localStorage.getItem(IMGBB_API_KEY_STORAGE_KEY);
+        if (savedKey) {
+            imgbbApiKeyInput.value = savedKey;
+        }
+        settingsModal.showModal();
+    }
+
+    function closeSettingsModal() {
+        console.log("關閉設定 Modal");
+        settingsModal.close();
+        settingsForm.reset(); // 清空表單
+        // 重新載入 input 中的值，避免 reset 清掉剛儲存的
+        const savedKey = localStorage.getItem(IMGBB_API_KEY_STORAGE_KEY);
+        if (savedKey) {
+            imgbbApiKeyInput.value = savedKey;
+        }
+    }
+
+    // *** 新增：為 Quill 工具列添加 Tooltips ***
+    function addQuillToolbarTooltips(editorContainer) {
+        const toolbar = editorContainer.closest('.ql-container')?.previousElementSibling;
+        if (!toolbar || !toolbar.classList.contains('ql-toolbar')) {
+            console.warn("無法找到 Quill 工具列來添加 tooltips。");
+            return;
+        }
+        console.log("正在為 Quill 工具列添加 tooltips...");
+
+        const tooltips = {
+            // 按鈕
+            '.ql-bold': '粗體 (Ctrl+B)',
+            '.ql-italic': '斜體 (Ctrl+I)',
+            '.ql-underline': '底線 (Ctrl+U)',
+            '.ql-strike': '刪除線',
+            '.ql-list[value="ordered"]': '有序清單',
+            '.ql-list[value="bullet"]': '無序清單',
+            '.ql-script[value="sub"]': '下標',
+            '.ql-script[value="super"]': '上標',
+            '.ql-indent[value="-1"]': '減少縮排',
+            '.ql-indent[value="+1"]': '增加縮排',
+            '.ql-link': '插入連結',
+            '.ql-image': '插入圖片 (從檔案)', // *** 修改提示 ***
+            '.ql-video': '插入影片', // (如果 Quill 有 video 模組)
+            '.ql-camera': '拍照上傳', // *** 新增拍照按鈕提示 ***
+            '.ql-blockquote': '引用塊',
+            '.ql-code-block': '程式碼區塊',
+            '.ql-clean': '清除格式',
+            // 下拉選單標籤 (找到對應的 picker label)
+            '.ql-header .ql-picker-label': '標題大小',
+            '.ql-font .ql-picker-label': '字體',
+            '.ql-size .ql-picker-label': '字型大小',
+            '.ql-color .ql-picker-label': '文字顏色',
+            '.ql-background .ql-picker-label': '背景顏色'
+        };
+
+        for (const selector in tooltips) {
+            const element = toolbar.querySelector(selector);
+            if (element) {
+                element.setAttribute('title', tooltips[selector]);
+            } else {
+                console.warn(`Tooltip selector 未找到元素: ${selector}`);
+            }
+        }
+
+        // --- 特殊處理對齊按鈕/選項 --- 
+        // 處理獨立按鈕 (Quill 2.0 預設)
+        const alignButtons = toolbar.querySelectorAll('.ql-align button');
+        if (alignButtons.length > 0) {
+            console.log("處理獨立對齊按鈕 Tooltips...");
+            alignButtons.forEach(btn => {
+                const value = btn.value || ''; 
+                if (value === 'center') btn.title = '置中對齊';
+                else if (value === 'right') btn.title = '靠右對齊';
+                else if (value === 'justify') btn.title = '兩端對齊';
+                else btn.title = '靠左對齊 (預設)'; 
+            });
+        }
+        
+        // 同時處理下拉選單選項 (以防萬一或自訂工具列)
+        const alignPickerItems = toolbar.querySelectorAll('.ql-align .ql-picker-item');
+        if (alignPickerItems.length > 0) {
+             console.log("處理對齊下拉選單選項 Tooltips...");
+             alignPickerItems.forEach(item => {
+                const value = item.getAttribute('data-value') || '';
+                if (value === 'center') item.title = '置中對齊';
+                else if (value === 'right') item.title = '靠右對齊';
+                else if (value === 'justify') item.title = '兩端對齊';
+                else item.title = '靠左對齊 (預設)';
+             });
+             // 也為下拉選單標籤加上提示
+             const alignPickerLabel = toolbar.querySelector('.ql-align .ql-picker-label');
+             if (alignPickerLabel) {
+                 alignPickerLabel.title = '對齊方式';
+             }
+        }
+        // --- 對齊處理結束 ---
+
+        // 特殊處理 RTL 按鈕 (如果有的話)
+        const rtlButton = toolbar.querySelector('.ql-direction[value="rtl"]');
+        if (rtlButton) {
+            rtlButton.setAttribute('title', '從右至左');
+        }
+         const ltrButton = toolbar.querySelector('.ql-direction:not([value="rtl"])'); // 預設是 LTR
+         if (ltrButton) {
+             ltrButton.setAttribute('title', '從左至右 (預設)');
+         }
+
+        // *** 注意：需要確認 Quill 2.0 如何渲染自訂按鈕，可能需要調整選擇器 ***
+        const cameraButton = toolbar.querySelector('.ql-camera'); 
+        if (cameraButton) { 
+            cameraButton.setAttribute('title', '拍照上傳');
+        } else {
+            console.warn("未找到拍照按鈕 .ql-camera");
+        }
+
+        // *** 新增：手動創建並添加拍照按鈕 ***
+        try {
+            console.log("準備尋找 Quill 工具列的 HTML 結構..."); // *** 新增偵錯 Log ***
+            console.log("Toolbar HTML:", toolbar.innerHTML); // *** 新增偵錯 Log ***
+
+            // 找到包含 'image' 按鈕的那個工具列群組 (.ql-formats)
+            const imageButton = toolbar.querySelector('.ql-image');
+            console.log("找到的 imageButton:", imageButton); // *** 新增偵錯 Log ***
+
+            const buttonGroup = imageButton?.closest('.ql-formats'); 
+            console.log("找到的 buttonGroup (包含 imageButton):", buttonGroup); // *** 新增偵錯 Log ***
+
+            if (buttonGroup) {
+                console.log("進入 buttonGroup 區塊，準備檢查/創建按鈕..."); // *** 新增偵錯 Log ***
+                 // 檢查是否已存在拍照按鈕，避免重複添加
+                 let existingCameraButton = null;
+                 try {
+                    existingCameraButton = buttonGroup.querySelector('.ql-camera');
+                    console.log("檢查現有 .ql-camera 按鈕結果:", existingCameraButton); // *** 新增偵錯 Log ***
+                 } catch (queryError) {
+                    console.error("查詢 .ql-camera 時發生錯誤:", queryError); // *** 新增偵錯 Log ***
+                 }
+                 
+                 if (!existingCameraButton) {
+                     console.log("未找到現有拍照按鈕，開始創建..."); // *** 新增偵錯 Log ***
+                     const cameraButton = document.createElement('button');
+                     cameraButton.setAttribute('type', 'button');
+                     cameraButton.classList.add('ql-camera'); // 使用這個 class 作為標識
+                     cameraButton.innerHTML = '<i class="fa-solid fa-camera"></i>'; // 加入 Font Awesome 圖示
+                     cameraButton.setAttribute('title', '拍照上傳');
+ 
+                     // 綁定點擊事件
+                     cameraButton.addEventListener('click', openCameraModal);
+ 
+                     // *** 修改：將按鈕插入到群組末尾 ***
+                     try {
+                         buttonGroup.appendChild(cameraButton);
+                         console.log("拍照按鈕已透過 appendChild 添加到工具列群組。"); // *** 修改 Log ***
+                     } catch (appendError) {
+                         console.error("appendChild 拍照按鈕時發生錯誤:", appendError); // *** 新增偵錯 Log ***
+                     }
+                 } else {
+                     console.log("拍照按鈕 (.ql-camera) 已存在於此群組，跳過創建。"); // *** 修改 Log ***
+                 }
+            } else {
+                 // *** 修改錯誤 Log ***
+                 console.warn("未找到包含 .ql-image 按鈕的父層 .ql-formats。無法添加拍照按鈕。"); 
+            }
+        } catch (error) {
+            console.error("添加自訂拍照按鈕時發生錯誤:", error);
+        }
+
+        console.log("Quill 工具列 tooltips 和自訂按鈕添加完成。");
+    }
+
+    // --- 相機拍照相關函式 ---
+    function openCameraModal() {
+        console.log("開啟拍照 Modal");
+        // 檢查 API Key
+        const apiKey = localStorage.getItem(IMGBB_API_KEY_STORAGE_KEY);
+        if (!apiKey) {
+            showNotification("請先設定 ImgBB API Key 以使用拍照功能。", "error");
+            openSettingsModal();
+            return;
+        }
+        // 檢查瀏覽器支援性
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showNotification("您的瀏覽器不支援相機功能。", 'error');
+            return;
+        }
+        cameraFeedback.textContent = '';
+        cameraModal.showModal();
+        startCameraStream();
+    }
+
+    function startCameraStream() {
+        stopCameraStream(); // 先確保關閉舊的流
+        cameraFeedback.textContent = '請求相機權限...';
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }) // 優先使用後置鏡頭
+            .then(stream => {
+                console.log("相機權限獲取成功");
+                currentCameraStream = stream;
+                cameraView.srcObject = stream;
+                cameraFeedback.textContent = '相機已啟動';
+                capturePhotoBtn.disabled = false; // 啟用拍照按鈕
+            })
+            .catch(err => {
+                console.error("無法獲取相機權限:", err);
+                cameraFeedback.textContent = `無法啟動相機: ${err.name}`;
+                showNotification("無法啟動相機，請檢查權限設定。", 'error');
+                capturePhotoBtn.disabled = true; // 禁用拍照按鈕
+                // 可以考慮短暫顯示後關閉 Modal
+                // setTimeout(closeCameraModal, 3000);
+            });
+    }
+
+    function stopCameraStream() {
+        if (currentCameraStream) {
+            currentCameraStream.getTracks().forEach(track => track.stop());
+            currentCameraStream = null;
+            cameraView.srcObject = null;
+            console.log("相機流已停止");
+        }
+         capturePhotoBtn.disabled = true; // 停止後禁用拍照按鈕
+    }
+
+    function closeCameraModal() {
+        console.log("關閉拍照 Modal");
+        stopCameraStream(); // 關閉時停止相機
+        cameraModal.close();
+    }
+
+    function capturePhoto() {
+        if (!cameraView.srcObject) {
+            console.warn("相機未啟動，無法拍照。");
+            return;
+        }
+        console.log("準備拍照...");
+        capturePhotoBtn.disabled = true; // 拍照中禁用按鈕
+        cameraFeedback.textContent = '正在擷取畫面...';
+
+        const context = cameraCanvas.getContext('2d');
+        // 設定 Canvas 尺寸與 Video 相同
+        cameraCanvas.width = cameraView.videoWidth;
+        cameraCanvas.height = cameraView.videoHeight;
+        // 將 Video 畫面畫到 Canvas 上
+        context.drawImage(cameraView, 0, 0, cameraCanvas.width, cameraCanvas.height);
+
+        // 將 Canvas 轉為 Blob
+        cameraCanvas.toBlob((blob) => {
+            if (!blob) {
+                console.error("無法從 Canvas 創建 Blob。");
+                showNotification("拍照失敗，無法處理圖片。", "error");
+                capturePhotoBtn.disabled = false; // 重新啟用按鈕
+                cameraFeedback.textContent = '拍照失敗';
+                return;
+            }
+
+            console.log("照片 Blob 已創建，大小:", blob.size);
+            closeCameraModal(); // 關閉拍照視窗
+
+            // 獲取 API Key
+            const apiKey = localStorage.getItem(IMGBB_API_KEY_STORAGE_KEY);
+            if (!apiKey) { /* 理論上 openCameraModal 已檢查 */ return; }
+
+            // 插入提示並上傳
+            const range = quill.getSelection(true);
+            const placeholderText = '\n[拍照上傳中(ImgBB)...]\n';
+            quill.insertText(range.index, placeholderText, { 'color': 'grey', 'italic': true });
+            quill.setSelection(range.index + placeholderText.length); 
+            
+            // 為 Blob 創建一個檔案名稱
+            const fileName = `capture_${Date.now()}.jpg`;
+            const capturedFile = new File([blob], fileName, { type: 'image/jpeg' });
+
+            uploadImageToImgBB(capturedFile, range.index, apiKey); // 使用現有的上傳函式
+
+        }, 'image/jpeg', 0.9); // 指定輸出為 JPEG 格式，品質 90%
+    }
+
+    // --- 初始狀態 ---
+    function initializeApp() {
+        console.log("頁面初始化完成，設定連線監聽、載入已存列表並檢查自動載入...");
+        setupConnectionListener(); // *** 呼叫連線監聽設定 ***
+        populateSavedTripsDropdown(); 
+        updatePendingWritesUI(); // *** 初始化待同步 UI ***
+
+        const savedTripId = localStorage.getItem(LAST_TRIP_KEY);
+        if (savedTripId) {
+            console.log(`發現上次儲存的行程 ID: ${savedTripId}，嘗試自動載入...`);
+            loadTrip(savedTripId);
+        } else {
+            console.log("未發現上次儲存的行程 ID。");
+            clearCurrentTripDisplay(); // *** 確保初始狀態乾淨 ***
+        }
+
+        // *** 新增：綁定筆記 Modal 關閉/儲存事件 ***
+        cancelNotesBtn.addEventListener('click', closeNotesModal);
+        saveNotesBtn.addEventListener('click', saveNotes);
+
+        // *** 新增：綁定設定按鈕和 Modal 事件 ***
+        settingsBtn.addEventListener('click', openSettingsModal);
+        cancelSettingsBtn.addEventListener('click', closeSettingsModal);
+
+        settingsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const apiKey = imgbbApiKeyInput.value.trim();
+            if (apiKey) {
+                try {
+                    localStorage.setItem(IMGBB_API_KEY_STORAGE_KEY, apiKey);
+                    console.log("ImgBB API Key 已儲存");
+                    showNotification("設定已儲存！", 'success');
+                    closeSettingsModal();
+                } catch (error) {
+                    console.error("儲存 ImgBB API Key 失敗:", error);
+                    showNotification("儲存設定失敗，可能是 localStorage 已滿或被禁用。", 'error');
+                }
+            } else {
+                // 如果清空了 Key，也從 localStorage 移除
+                try {
+                    localStorage.removeItem(IMGBB_API_KEY_STORAGE_KEY);
+                    console.log("已清除儲存的 ImgBB API Key");
+                    showNotification("已清除 ImgBB API Key 設定。", 'success');
+                     closeSettingsModal();
+                } catch (error) {
+                     console.error("清除 ImgBB API Key 失敗:", error);
+                     showNotification("清除設定失敗。", 'error');
+                }
+            }
+        });
+
+        // *** 新增：綁定拍照 Modal 事件 ***
+        capturePhotoBtn.addEventListener('click', capturePhoto);
+        cancelCameraBtn.addEventListener('click', closeCameraModal);
+    }
+
+    initializeApp(); // 執行初始化
 });
 
 // --- Firestore 版本的函式 (已不再使用，保留供參考) ---
