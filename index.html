@@ -8,11 +8,25 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <!-- 自訂樣式 -->
     <link rel="stylesheet" href="styles/main.css">
+    <!-- Font Awesome 圖示庫 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- Quill CSS (Updated to v2.0.2) -->
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+    <!-- Google Fonts (中文字型) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
     <!-- 未來可以加入 CSS 樣式表連結 -->
     <!-- <link rel="stylesheet" href="styles/main.css"> -->
 </head>
 <body>
-    <h1>旅行記錄應用程式</h1>
+    <h1>
+        旅行記錄應用程式
+        <!-- 連線狀態指示器 -->
+        <span id="connection-status" style="font-size: 0.8em; margin-left: 15px; padding: 3px 8px; border-radius: 5px;"></span>
+        <!-- 待同步操作指示器 -->
+        <span id="pending-writes-indicator" style="font-size: 0.8em; margin-left: 10px; display: none;"></span>
+    </h1>
 
     <!-- 頁面通知區域 -->
     <div id="notification-area" role="alert" style="display: none; margin-bottom: 1rem;"></div>
@@ -23,31 +37,29 @@
         <div>
             <label for="trip-name">新行程名稱:</label>
             <input type="text" id="trip-name" placeholder="例如：東京五日遊">
-            <button id="create-trip-btn">建立新行程</button>
+            <button id="create-trip-btn"><i class="fa-solid fa-plus"></i> 建立</button>
         </div>
         <br>
         <div>
             <label for="trip-id-input">載入行程 ID:</label>
             <input type="text" id="trip-id-input" placeholder="貼上行程 ID">
-            <button id="load-trip-btn">載入行程</button>
+            <button type="button" id="scan-qr-btn" style="margin-left: 5px;" title="掃描 QR Code"><i class="fa-solid fa-qrcode"></i></button>
+            <button id="load-trip-btn" style="margin-left: 5px;"><i class="fa-solid fa-arrow-right-to-bracket"></i> 載入</button>
             <span id="loading-indicator" style="margin-left: 10px; display: none;">載入中...</span>
         </div>
         <br>
-        <!-- 新增：儲存的行程 ID 管理 -->
         <div>
             <label for="saved-trips-select">選擇已存行程:</label>
             <select id="saved-trips-select">
                 <option value="">-- 無已存行程 --</option>
             </select>
-            <button id="delete-selected-trip-btn" style="margin-left: 5px;" disabled>刪除選定</button>
+            <button id="delete-selected-trip-btn" style="margin-left: 5px;" disabled title="刪除選定的已存行程"><i class="fa-solid fa-trash-can"></i></button>
         </div>
         <br>
         <div>
-            <strong>目前行程 ID:</strong> <span id="current-trip-id">尚未載入</span>
-            <!-- 新增：顯示行程名稱 -->
-            (<span id="current-trip-name"></span>)
-            <!-- 加入 QR Code 按鈕 -->
-            <button id="toggle-qrcode-btn" style="margin-left: 10px; display: none;">顯示/隱藏 QR Code</button>
+            <strong><i class="fa-solid fa-route"></i> 目前行程:</strong>
+            (<span id="current-trip-name"></span>) ID: <span id="current-trip-id">尚未載入</span>
+            <button id="toggle-qrcode-btn" style="margin-left: 10px; display: none;" title="顯示/隱藏 QR Code"><i class="fa-solid fa-qrcode"></i></button>
         </div>
         <!-- 加入 QR Code 容器 (預設隱藏) -->
         <div id="qrcode-container" style="margin-top: 10px; display: none;"></div>
@@ -98,12 +110,25 @@
         </section>
     </div>
 
+    <!-- QR Code 掃描 Modal (預設隱藏) -->
+    <div id="scan-modal" style="display: none; position: fixed; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); z-index: 1010; padding: 10px; box-sizing: border-box; text-align: center; color: white;">
+        <p>請將行程 QR Code 對準相機</p>
+        <div style="position: relative; width: 80%; max-width: 400px; margin: 10px auto;">
+            <video id="scan-video" playsinline style="width: 100%; height: auto; border: 1px solid grey;"></video>
+            <!-- Canvas 用於 jsQR 處理，可以設為隱藏或疊加顯示掃描框 -->
+            <canvas id="scan-canvas" style="display: none;"></canvas>
+        </div>
+        <button type="button" id="cancel-scan-btn">取消掃描</button>
+        <p id="scan-feedback" style="margin-top: 10px;"></p>
+    </div>
+
     <!-- Firebase SDK (Software Development Kit) -->
     <!-- 注意：這裡引入了核心、Firestore 和 Auth。如果您選擇 Realtime Database，請替換或添加對應的 SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <!-- <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script> --> <!-- 暫時註解掉 Firestore -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script> <!-- 加入 Realtime Database -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script> <!-- *** 新增：加入 Storage SDK *** -->
 
     <!-- Firebase 設定檔 -->
     <script src="js/firebase-config.js"></script>
@@ -111,9 +136,20 @@
     <!-- QR Code 產生函式庫 -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
-    <!-- 主要的應用程式邏輯 -->
-    <!-- <script src="js/app.js"></script> -->
-    <script src="js/itinerary.js"></script>
+    <!-- QR Code 掃描函式庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+    <!-- SortableJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
+    <!-- Quill JS (Updated to v2.0.2) -->
+    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+    <!-- Quill Better Table Module (Temporarily Removed) -->
+    <!-- <link rel="stylesheet" href="https://unpkg.com/quill-better-table@1.2.10/dist/quill-better-table.css"> -->
+    <!-- <script type="text/javascript" src="https://unpkg.com/quill-better-table@1.2.10/dist/quill-better-table.js"></script> -->
+
+    <!-- Custom JS -->
+    <script src="js/itinerary.js" defer></script>
 
     <!-- 行程項目編輯 Modal (預設隱藏) -->
     <div id="edit-item-modal" style="display: none; position: fixed; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; padding: 20px; box-sizing: border-box;">
@@ -150,6 +186,25 @@
             </form>
         </div>
     </div>
+
+    <!-- 編輯筆記 Modal -->
+    <dialog id="notes-modal">
+        <article>
+            <header>
+                <a href="#close" aria-label="Close" class="close" id="cancel-notes-btn"></a>
+                編輯行程筆記
+            </header>
+            <input type="hidden" id="notes-item-id"> <!-- 儲存目前編輯的項目ID -->
+            <div id="notes-editor-container">
+                <div id="notes-editor" style="min-height: 200px; border: 1px solid var(--form-element-border-color);">
+                    <!-- Quill 編輯器將會附加在這裡 -->
+                </div>
+            </div>
+            <footer>
+                 <button id="save-notes-btn">儲存筆記</button>
+            </footer>
+        </article>
+    </dialog>
 
 </body>
 </html> 

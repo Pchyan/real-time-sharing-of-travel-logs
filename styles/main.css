@@ -32,6 +32,7 @@ body {
     padding: 0.5rem; /* 項目內邊距 */
     border: 1px solid var(--pico-form-element-border-color); /* 使用 Pico 的邊框顏色 */
     border-radius: var(--pico-border-radius); /* 使用 Pico 的圓角 */
+    cursor: grab; /* 讓使用者知道可以拖曳 */
 }
 
 /* 行程項目文字 */
@@ -72,4 +73,270 @@ body {
     /* 可以根據需要添加樣式，例如旋轉動畫 */
 }
 
-/* 可以在這裡加入更多自訂樣式 */ 
+/* 可以在這裡加入更多自訂樣式 */
+
+/* 用於高亮必填但未填的輸入框 */
+.input-error {
+    border-color: var(--pico-color-red-600) !important; 
+    box-shadow: 0 0 0 1px var(--pico-color-red-600);
+}
+
+/* 連線狀態指示器 */
+#connection-status {
+    color: white;
+    transition: background-color 0.3s ease;
+}
+
+#connection-status.online {
+    background-color: var(--pico-color-green-500);
+}
+
+#connection-status.offline {
+    background-color: var(--pico-color-gray-500);
+}
+
+/* 拖曳排序相關樣式 */
+#itinerary-list li.sortable-ghost {
+    opacity: 0.4;
+    background-color: var(--pico-accent-color) !important; /* Pico 的強調色 */
+}
+
+#itinerary-list li.sortable-chosen {
+    cursor: grabbing;
+}
+
+/* 路線規劃連結容器 */
+.directions-link-container {
+    /* padding: 0.5rem 0; */ /* 可以根據需要調整上下間距 */
+    /* text-align: center; */ /* 按鈕樣式已處理 */
+}
+
+#itinerary-list li {
+    cursor: grab; /* 讓使用者知道可以拖曳 */
+}
+
+/* 基本樣式 */
+body {
+    /* 可以添加一些全局邊距 */
+    /* padding: 1rem; */
+}
+
+/* 行程列表項目 */
+#itinerary-list li {
+    /* 添加一些底部邊距 */
+    margin-bottom: 1rem;
+    /* 可以添加背景色或邊框以便區分 */
+    /* background-color: #f8f9fa; */
+    /* padding: 1rem; */
+    /* border-radius: 4px; */
+    cursor: grab; /* 顯示可拖曳游標 */
+    display: flex; /* 使用 flexbox 對齊 */
+    justify-content: space-between; /* 將文字和按鈕分開 */
+    align-items: center; /* 垂直居中對齊 */
+}
+
+#itinerary-list li span {
+    flex-grow: 1; /* 讓文字部分佔據多餘空間 */
+    margin-right: 1rem; /* 與按鈕組保持距離 */
+}
+
+#itinerary-list li div {
+    display: flex; /* 按鈕也用 flex 排列 */
+    gap: 0.5rem; /* 按鈕間距 */
+}
+
+/* SortableJS 拖曳時的樣式 */
+.sortable-ghost {
+    opacity: 0.4;
+    background-color: #cce5ff;
+}
+
+/* 連線狀態樣式 */
+.online {
+    color: green;
+    font-weight: bold;
+}
+
+.offline {
+    color: red;
+    font-weight: bold;
+}
+
+/* 通知區域樣式 */
+#notification-area {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+    opacity: 1;
+    transition: opacity 0.5s ease-out;
+}
+
+#notification-area.success {
+    background-color: #d4edda; /* 淡綠色背景 */
+    color: #155724; /* 深綠色文字 */
+    border: 1px solid #c3e6cb;
+}
+
+#notification-area.error {
+    background-color: #f8d7da; /* 淡紅色背景 */
+    color: #721c24; /* 深紅色文字 */
+    border: 1px solid #f5c6cb;
+}
+
+/* 路線規劃連結容器 */
+.directions-link-container {
+     /* padding: 0.5rem 0; */ /* 上下留白 */
+     /* text-align: center; */ /* 文字居中 (如果需要) */
+     /* border-top: 1px dashed #ccc; */ /* 可選：在上方加分隔線 */
+     /* margin-top: 0.5rem; */ /* 與上方項目保持距離 */
+     /* margin-bottom: 1rem; */ /* 與下方項目保持距離 */
+}
+
+/* --- Quill 編輯器樣式修正 --- */
+
+/* 工具欄整體 */
+.ql-toolbar {
+    background-color: var(--card-background-color, #fff); /* 使用 Pico 的卡片背景色或白色 */
+    border-bottom: 1px solid var(--form-element-border-color, #ccc); /* 使用 Pico 的表單邊框色 */
+    padding: 8px !important; /* 增加內邊距，並強制覆蓋 */
+    display: flex; /* 確保內部元素能正確排列 */
+    flex-wrap: wrap; /* 允許換行 */
+    gap: 4px; /* 元素間增加一點空隙 */
+}
+
+/* Quill 工具欄內的按鈕和下拉選單 */
+.ql-toolbar .ql-picker,
+.ql-toolbar button {
+    background: none !important; /* 移除 Pico 的按鈕背景 */
+    border: none !important; /* 移除 Pico 的按鈕邊框 */
+    padding: 4px !important; /* 適當調整內邊距 */
+    margin: 0 !important; /* 移除 Pico 可能添加的外邊距 */
+    width: auto !important; /* 讓寬度自適應 */
+    min-width: unset !important; /* 取消 Pico 的最小寬度 */
+    height: auto !important; /* 高度自適應 */
+    line-height: normal !important; /* 重設行高 */
+    display: inline-flex !important; /* 使用 inline-flex 對齊圖示 */
+    align-items: center; /* 垂直居中圖示 */
+    justify-content: center; /* 水平居中圖示 */
+    color: var(--color, #333); /* 使用 Pico 的預設文字顏色 */
+    cursor: pointer;
+}
+
+/* Quill 工具欄按鈕的 SVG 圖示 */
+.ql-toolbar button svg,
+.ql-toolbar .ql-picker-label svg {
+    vertical-align: middle; /* 嘗試讓 SVG 垂直居中 */
+    width: 18px; /* 稍微調整圖示大小 */
+    height: 18px;
+}
+
+/* Quill 下拉選單標籤 */
+.ql-toolbar .ql-picker-label {
+    padding: 4px !important;
+    border: 1px solid var(--form-element-border-color, #ccc) !important; /* 加回一個簡單的邊框 */
+    border-radius: var(--border-radius, 4px);
+    background-color: var(--form-element-background-color, #fff);
+    display: inline-flex !important; /* 確保和按鈕類似 */
+    align-items: center;
+    height: auto !important;
+    line-height: normal !important;
+    color: var(--color, #333);
+}
+
+/* Quill 下拉選單選項 */
+.ql-picker-options {
+     background-color: var(--card-background-color, #fff) !important;
+     border: 1px solid var(--form-element-border-color, #ccc) !important;
+     border-radius: var(--border-radius, 4px);
+     padding: 0.5rem !important;
+}
+
+.ql-picker-item {
+    color: var(--color, #333) !important;
+    padding: 0.25rem 0.5rem !important;
+}
+
+.ql-picker-item:hover {
+    background-color: var(--primary-hover, #ddd) !important;
+}
+
+/* 編輯器區域 */
+#notes-editor {
+    background-color: var(--form-element-background-color, #fff); /* 設定背景色 */
+    color: var(--color, #333); /* 設定文字顏色 */
+    border: 1px solid var(--form-element-border-color, #ccc) !important; /* 確保邊框可見 */
+    border-top: none !important; /* 移除頂部邊框，因為工具欄已有底部邊框 */
+    min-height: 200px; /* 保持最小高度 */
+    border-radius: 0 0 var(--border-radius, 4px) var(--border-radius, 4px); /* 底部圓角 */
+}
+
+/* 編輯器內容區域 */
+.ql-editor {
+    min-height: inherit; /* 繼承父元素的最小高度 */
+    padding: 12px;
+}
+
+/* --- Quill 自訂字型對應 --- */
+.ql-font-sans-serif {
+  font-family: sans-serif; /* Quill 預設 */
+}
+.ql-font-serif {
+  font-family: serif;
+}
+.ql-font-monospace {
+  font-family: monospace;
+}
+.ql-font-noto-sans-tc {
+  font-family: 'Noto Sans TC', sans-serif;
+}
+.ql-font-noto-serif-tc {
+  font-family: 'Noto Serif TC', serif;
+}
+
+/* --- Quill 字型下拉選單文字調整 --- */
+
+/* 隱藏原始選項文字 (技術名稱) - 簡化方式 */
+.ql-font .ql-picker-item {
+    font-size: 0 !important; 
+    line-height: 1 !important; /* 保持行高，避免元素摺疊 */
+    /* 保留原有的 padding 和其他布局屬性 */
+}
+
+/* 使用 ::before 插入新的顯示文字 */
+.ql-font .ql-picker-item::before {
+    content: attr(data-value); /* 預設顯示 data-value 以便除錯 */
+    font-size: initial !important; /* 恢復正常字體大小 */
+    line-height: initial !important; /* 恢復正常行高 */
+    color: var(--color, #333) !important; /* 確保文字可見 */
+    /* 不需要絕對定位 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block; /* 或者 block，根據需要 */
+    width: 100%; /* 佔滿可用寬度 */
+}
+
+.ql-font .ql-picker-item[data-value="sans-serif"]::before {
+    content: "無襯線 (預設)" !important;
+    font-family: sans-serif;
+}
+
+.ql-font .ql-picker-item[data-value="serif"]::before {
+    content: "襯線體" !important;
+    font-family: serif;
+}
+
+.ql-font .ql-picker-item[data-value="monospace"]::before {
+    content: "等寬體" !important;
+    font-family: monospace;
+}
+
+.ql-font .ql-picker-item[data-value="noto-sans-tc"]::before {
+    content: "黑體" !important;
+    font-family: 'Noto Sans TC', sans-serif;
+}
+
+.ql-font .ql-picker-item[data-value="noto-serif-tc"]::before {
+    content: "宋體" !important;
+    font-family: 'Noto Serif TC', serif;
+} 
