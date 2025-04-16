@@ -65,63 +65,117 @@
         <!-- 行程管理 -->
         <section id="trip-management" aria-labelledby="trip-management-heading">
             <h2 id="trip-management-heading" class="with-icon"><i class="fa-solid fa-suitcase"></i> 行程管理</h2>
-            
-            <!-- 新行程建立 -->
-            <div class="grid">
-                <div>
-                    <label for="trip-name">
-                        新行程名稱
-                        <input type="text" id="trip-name" placeholder="例如：東京五日遊" required>
-                    </label>
-                </div>
-                <div class="action-buttons">
-                    <button id="create-trip-btn" class="primary"><i class="fa-solid fa-plus"></i> 建立新行程</button>
-                </div>
-            </div>
 
-            <!-- 行程載入 -->
-            <div class="grid">
-                <div class="load-trip-container">
-                    <label for="trip-id-input">
-                        載入行程 ID
-                        <div class="input-group">
-                            <input type="text" id="trip-id-input" placeholder="貼上行程 ID">
-                            <button type="button" id="scan-qr-btn" class="secondary outline" title="掃描 QR Code"><i class="fa-solid fa-qrcode"></i></button>
-                            <button id="load-trip-btn" class="primary"><i class="fa-solid fa-arrow-right-to-bracket"></i> 載入</button>
+            <!-- 建立新行程與 AI 生成 -->
+            <article>
+                <header>建立新行程</header>
+                <form id="create-trip-form">
+                    <div class="grid">
+                        <label for="trip-name">
+                            <i class="fa-solid fa-signature"></i> 行程名稱*
+                            <input type="text" id="trip-name" name="trip-name" placeholder="例如：東京五日遊" required aria-describedby="trip-name-desc">
+                            <small id="trip-name-desc">為您的旅程取個獨特的名稱。</small>
+                        </label>
+                        <label for="trip-location">
+                            <i class="fa-solid fa-map-marker-alt"></i> 目的地*
+                            <input type="text" id="trip-location" name="trip-location" placeholder="例如：日本東京" required aria-describedby="location-desc">
+                            <small id="location-desc">旅程的主要地點或國家。</small>
+                        </label>
+                    </div>
+                    <div class="grid">
+                        <label for="trip-days">
+                            <i class="fa-solid fa-calendar-day"></i> 天數*
+                            <input type="number" id="trip-days" name="trip-days" min="1" placeholder="例如：5" required aria-describedby="days-desc">
+                            <small id="days-desc">行程總共持續幾天。</small>
+                        </label>
+                        <label for="trip-preferences">
+                            <i class="fa-solid fa-heart"></i> 喜好
+                            <input type="text" id="trip-preferences" name="trip-preferences" placeholder="例如：歷史、美食、購物" aria-describedby="preferences-desc">
+                             <small id="preferences-desc">告訴 AI 您的興趣（可選）。</small>
+                        </label>
+                    </div>
+                    <div class="grid">
+                        <label for="trip-transport">
+                            <i class="fa-solid fa-bus"></i> 主要交通方式
+                            <input type="text" id="trip-transport" name="trip-transport" placeholder="例如：大眾運輸、自駕" aria-describedby="transport-desc">
+                            <small id="transport-desc">旅途中主要的移動方式（可選）。</small>
+                        </label>
+                         <div class="grid">
+                             <label for="trip-start-date">
+                                 <i class="fa-solid fa-calendar-alt"></i> 出發日期
+                                 <input type="date" id="trip-start-date" name="trip-start-date" aria-describedby="start-date-desc">
+                                 <small id="start-date-desc">選擇行程開始日期（可選）。</small>
+                             </label>
+                             <label for="trip-start-time">
+                                 <i class="fa-solid fa-clock"></i> 出發時間
+                                 <input type="time" id="trip-start-time" name="trip-start-time" aria-describedby="start-time-desc">
+                                 <small id="start-time-desc">第一天開始時間（可選）。</small>
+                             </label>
+                         </div>
+                    </div>
+                    <footer>
+                        <div class="grid">
+                            <button type="button" id="create-trip-btn" class="primary"><i class="fa-solid fa-plus"></i> 手動建立</button>
+                            <button type="button" id="generate-trip-ai-btn" class="secondary"><i class="fa-solid fa-wand-magic-sparkles"></i> AI 生成行程</button>
                         </div>
-                    </label>
-                    <span id="loading-indicator" style="margin-left: 10px; display: none;" aria-live="polite">載入中...</span>
-                </div>
-            </div>
+                        <div id="ai-loading-indicator" style="display: none; margin-top: 0.5rem;" aria-live="polite">
+                            <progress></progress>
+                            <small>AI 正在生成行程，請稍候...</small>
+                        </div>
+                    </footer>
+                </form>
+            </article>
 
-            <!-- 已存行程選擇 -->
-            <div class="grid">
-                <label for="saved-trips-select">
-                    已儲存行程
-                    <select id="saved-trips-select">
-                        <option value="">-- 無已存行程 --</option>
-                    </select>
-                </label>
-                <div class="action-buttons">
-                    <button id="delete-selected-trip-btn" class="secondary outline" disabled title="從此瀏覽器移除選擇的行程記錄"><i class="fa-solid fa-trash-can"></i> 移除</button>
-                    <button id="settings-btn" class="secondary outline" title="設定"><i class="fa-solid fa-gear"></i> 設定</button>
+            <!-- 載入與選擇已存行程 -->
+            <article>
+                <header>載入或管理行程</header>
+                <div class="grid">
+                    <!-- 左欄：載入 ID -->
+                    <div class="load-by-id">
+                        <label for="trip-id-input">
+                            <i class="fa-solid fa-arrow-right-to-bracket"></i> 載入行程 ID
+                            <input type="text" id="trip-id-input" name="trip-id" placeholder="貼上行程 ID 或掃描 QR Code">
+                        </label>
+                        <div class="grid">
+                             <button id="load-trip-btn" class="primary"><i class="fa-solid fa-check"></i> 載入</button>
+                             <button type="button" id="scan-qr-btn" class="secondary outline" title="掃描 QR Code"><i class="fa-solid fa-qrcode"></i> 掃描</button>
+                        </div>
+                        <div id="loading-indicator" style="display: none;" aria-live="polite">
+                             <progress></progress> <small>載入中...</small>
+                         </div>
+                    </div>
+                    <!-- 右欄：選擇已存 & 設定 -->
+                    <div class="select-saved">
+                        <label for="saved-trips-select">
+                            <i class="fa-solid fa-list"></i> 選擇已存行程
+                            <select id="saved-trips-select" name="saved-trip">
+                                <option value="">-- 無已存行程 --</option>
+                            </select>
+                        </label>
+                        <div class="grid action-buttons">
+                             <button id="delete-selected-trip-btn" class="secondary outline" disabled title="從此瀏覽器移除選擇的行程記錄"><i class="fa-solid fa-trash-can"></i> 移除列表記錄</button>
+                             <button id="settings-btn" class="secondary outline" title="設定 API Keys"><i class="fa-solid fa-gear"></i> 設定</button>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </article>
 
             <!-- 目前行程資訊卡 -->
-            <article id="current-trip-card" class="trip-info-card">
+            <article id="current-trip-card" class="trip-info-card" style="display: none;" aria-live="polite">
                 <header>
                     <i class="fa-solid fa-route"></i> 目前行程
                 </header>
                 <div class="grid">
                     <div>
-                        <h3 id="current-trip-name"></h3>
+                        <h3 id="current-trip-name" class="current-trip-title"></h3>
                         <p><small>ID: <code id="current-trip-id">尚未載入</code></small></p>
                     </div>
                     <div class="trip-actions">
-                        <button id="toggle-qrcode-btn" style="display: none;" class="secondary outline" title="顯示/隱藏 QR Code"><i class="fa-solid fa-qrcode"></i> 分享</button>
+                        <button id="toggle-qrcode-btn" style="display: none;" class="secondary outline" title="顯示/隱藏 QR Code"><i class="fa-solid fa-qrcode"></i> 分享 ID</button>
                     </div>
                 </div>
+                <!-- QR Code 容器 -->
+                <div id="qrcode-container" style="display: none;" class="qrcode-display" aria-hidden="true"></div>
                 <!-- 總預計花費 -->
                 <footer>
                     <div class="total-cost-section">
@@ -130,9 +184,7 @@
                     </div>
                 </footer>
             </article>
-            
-            <!-- QR Code 容器 -->
-            <div id="qrcode-container" style="display: none;" class="qrcode-display"></div>
+
         </section>
 
         <hr>
@@ -140,22 +192,23 @@
         <!-- 行程內容 (預設隱藏，載入行程後顯示) -->
         <div id="itinerary-content" style="display: none;">
             <!-- 行程建立表單 -->
-            <section id="create-itinerary">
+            <section id="create-itinerary" aria-labelledby="add-item-heading">
+                 <h2 id="add-item-heading" class="with-icon"><i class="fa-solid fa-calendar-plus"></i> 新增行程項目</h2>
                 <article>
-                    <header>
+                    <!--<header>
                         <h2><i class="fa-solid fa-calendar-plus"></i> 新增行程項目</h2>
-                    </header>
+                    </header>-->
                     <form id="itinerary-form" class="grid">
-                        <div>
+                         <div>
                             <label for="item-date">
-                                <i class="fa-regular fa-calendar"></i> 日期與時間
-                                <input type="datetime-local" id="item-date" required>
+                                <i class="fa-regular fa-calendar"></i> 日期與時間*
+                                <input type="datetime-local" id="item-date" name="item-date" required>
                             </label>
                         </div>
                         <div>
                             <label for="item-type">
-                                <i class="fa-solid fa-tags"></i> 類型
-                                <select id="item-type" required>
+                                <i class="fa-solid fa-tags"></i> 類型*
+                                <select id="item-type" name="item-type" required>
                                     <option value="">--請選擇--</option>
                                     <option value="transport">交通</option>
                                     <option value="accommodation">住宿</option>
@@ -165,25 +218,25 @@
                                 </select>
                             </label>
                         </div>
-                        <div>
+                        <div class="grid-span-2">
                             <label for="item-description">
-                                <i class="fa-solid fa-align-left"></i> 描述
-                                <input type="text" id="item-description" required>
+                                <i class="fa-solid fa-align-left"></i> 描述*
+                                <input type="text" id="item-description" name="item-description" required>
                             </label>
                         </div>
-                        <div>
+                         <div class="grid-span-2">
                             <label for="item-location">
                                 <i class="fa-solid fa-location-dot"></i> 地點
-                                <input type="text" id="item-location">
+                                <input type="text" id="item-location" name="item-location">
                             </label>
                         </div>
                         <div>
                             <label for="item-cost">
                                 <i class="fa-solid fa-coins"></i> 預計花費
-                                <input type="number" id="item-cost" step="0.01" placeholder="0.00">
+                                <input type="number" id="item-cost" name="item-cost" step="0.01" placeholder="0.00">
                             </label>
                         </div>
-                        <div>
+                        <div class="add-item-button-container">
                             <button type="submit" class="primary"><i class="fa-solid fa-plus"></i> 新增項目</button>
                         </div>
                     </form>
@@ -191,8 +244,8 @@
             </section>
 
             <!-- 行程顯示區域 -->
-            <section id="display-itinerary">
-                <h2><i class="fa-solid fa-list-check"></i> 行程列表</h2>
+            <section id="display-itinerary" aria-labelledby="itinerary-list-heading">
+                <h2 id="itinerary-list-heading" class="with-icon"><i class="fa-solid fa-list-check"></i> 行程列表</h2>
                 <div class="itinerary-container">
                     <ul id="itinerary-list" class="sortable-list">
                         <!-- 行程項目將會動態加載到這裡 -->
@@ -314,8 +367,14 @@
             <form id="settings-form">
                 <label for="imgbb-api-key-input">
                     ImgBB API Key
-                    <input type="text" id="imgbb-api-key-input" name="imgbb-api-key" placeholder="請輸入您的 ImgBB API v1 金鑰">
-                    <small>用於在筆記中上傳圖片。請至 <a href="https://api.imgbb.com/" target="_blank">ImgBB API</a> 網站申請。</small>
+                    <input type="password" id="imgbb-api-key-input" name="imgbb-api-key" placeholder="請輸入您的 ImgBB API v1 金鑰">
+                    <small>用於在筆記中上傳圖片。請至 <a href="https://api.imgbb.com/" target="_blank" rel="noopener noreferrer">ImgBB API</a> 網站申請。</small>
+                </label>
+                <!-- 新增 Gemini API Key 欄位 -->
+                <label for="gemini-api-key-input">
+                    Google Gemini API Key
+                    <input type="password" id="gemini-api-key-input" name="gemini-api-key" placeholder="請輸入您的 Google Gemini API 金鑰">
+                    <small>用於啟用 AI 功能（例如：行程建議）。請至 <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> 取得您的 API 金鑰。</small>
                 </label>
                 <footer>
                     <button type="submit" id="save-settings-btn" class="primary"><i class="fa-solid fa-save"></i> 儲存設定</button>

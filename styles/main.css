@@ -1,773 +1,474 @@
 /* styles/main.css */
 
 body {
-    padding: 20px;
+    padding: 1rem;
     scroll-behavior: smooth;
     line-height: 1.6;
 }
 
-/* 微調 Pico.css 的預設值或添加自訂樣式 */
-
-/* 讓編輯 Modal 的背景更明顯一點 */
-#edit-item-modal {
-    background-color: rgba(0, 0, 0, 0.65);
+main.container {
+    padding-top: 1rem;
 }
 
-/* Modal 內容區域 */
-#edit-item-modal > div {
-    /* Pico.css 已經處理了大部分樣式，這裡可以根據需要調整 */
-    padding: 1.5rem;
+hr {
+    margin-top: 2rem;
+    margin-bottom: 2rem;
 }
 
-/* QR Code 容器 */
-#qrcode-container img {
-    display: block; /* 避免下方多餘空白 */
-    margin: auto;   /* 置中 */
+section {
+    margin-bottom: 2rem;
 }
 
-/* 行程項目列表 */
-#itinerary-list li {
-    display: flex; /* 使用 flex 排列項目和按鈕 */
-    align-items: center; /* 垂直置中 */
-    justify-content: space-between; /* 將文字和按鈕推到兩邊 */
-    margin-bottom: 0.5rem; /* 項目間距 */
-    padding: 0.5rem; /* 項目內邊距 */
-    border: 1px solid var(--pico-form-element-border-color); /* 使用 Pico 的邊框顏色 */
-    border-radius: var(--pico-border-radius); /* 使用 Pico 的圓角 */
-    cursor: grab; /* 讓使用者知道可以拖曳 */
+article {
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--pico-card-border-color);
+    border-radius: var(--pico-card-border-radius);
+    box-shadow: var(--pico-card-box-shadow);
 }
 
-/* 行程項目文字 */
-#itinerary-list li span {
-    flex-grow: 1; /* 文字佔據多餘空間 */
-    margin-right: 1rem; /* 文字和按鈕間距 */
+article > header, article > footer {
+    padding: calc(var(--pico-block-spacing-vertical) * 0.75) var(--pico-block-spacing-horizontal);
 }
 
-/* 行程項目按鈕組 */
-#itinerary-list li div {
-    flex-shrink: 0; /* 按鈕不壓縮 */
+h2.with-icon i, h3.with-icon i, label i {
+    margin-right: 0.5em;
 }
 
-/* 調整按鈕間距 (Pico 預設按鈕間有邊距) */
-#itinerary-list li button {
-    margin-left: 0.5rem;
+form label small {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.875em;
+    color: var(--pico-secondary);
 }
 
-/* 頁面通知 */
-#notification-area {
-    padding: 0.75rem 1rem;
-    border-radius: var(--pico-border-radius);
-    color: white;
-    opacity: 1;
-    transition: opacity 0.5s ease-out;
+.grid-span-2 {
+    grid-column: span 2;
 }
 
-#notification-area.success {
-    background-color: var(--pico-color-green-600);
+.add-item-button-container {
+    grid-column: span 2;
+    text-align: right;
+    margin-top: 1rem;
 }
 
-#notification-area.error {
-    background-color: var(--pico-color-red-600);
+#trip-management article header {
+    font-weight: var(--pico-font-weight-semibold);
 }
 
-/* 載入提示 */
+.load-by-id, .select-saved {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.load-by-id .grid,
+.select-saved .grid {
+    margin-top: auto;
+}
+
 #loading-indicator {
-    /* 可以根據需要添加樣式，例如旋轉動畫 */
-}
-
-/* 可以在這裡加入更多自訂樣式 */
-
-/* 用於高亮必填但未填的輸入框 */
-.input-error {
-    border-color: var(--pico-color-red-600) !important; 
-    box-shadow: 0 0 0 1px var(--pico-color-red-600);
-}
-
-/* 連線狀態指示器 */
-#connection-status {
-    color: white;
-    transition: background-color 0.3s ease;
-}
-
-#connection-status.online {
-    background-color: var(--pico-color-green-500);
-}
-
-#connection-status.offline {
-    background-color: var(--pico-color-gray-500);
-}
-
-/* 拖曳排序相關樣式 */
-#itinerary-list li.sortable-ghost {
-    opacity: 0.4;
-    background-color: var(--pico-accent-color) !important; /* Pico 的強調色 */
-}
-
-#itinerary-list li.sortable-chosen {
-    cursor: grabbing;
-}
-
-/* 路線規劃連結容器 */
-.directions-link-container {
-    /* padding: 0.5rem 0; */ /* 可以根據需要調整上下間距 */
-    /* text-align: center; */ /* 按鈕樣式已處理 */
-}
-
-#itinerary-list li {
-    cursor: grab; /* 讓使用者知道可以拖曳 */
-}
-
-/* 基本樣式 */
-body {
-    /* 可以添加一些全局邊距 */
-    /* padding: 1rem; */
-}
-
-/* 行程列表項目 */
-#itinerary-list li {
-    /* 添加一些底部邊距 */
-    margin-bottom: 1rem;
-    /* 可以添加背景色或邊框以便區分 */
-    /* background-color: #f8f9fa; */
-    /* padding: 1rem; */
-    /* border-radius: 4px; */
-    cursor: grab; /* 顯示可拖曳游標 */
-    display: flex; /* 使用 flexbox 對齊 */
-    justify-content: space-between; /* 將文字和按鈕分開 */
-    align-items: center; /* 垂直居中對齊 */
-}
-
-#itinerary-list li span {
-    flex-grow: 1; /* 讓文字部分佔據多餘空間 */
-    margin-right: 1rem; /* 與按鈕組保持距離 */
-}
-
-#itinerary-list li div {
-    display: flex; /* 按鈕也用 flex 排列 */
-    gap: 0.5rem; /* 按鈕間距 */
-}
-
-/* SortableJS 拖曳時的樣式 */
-.sortable-ghost {
-    opacity: 0.4;
-    background-color: #cce5ff;
-}
-
-/* 連線狀態樣式 */
-.online {
-    color: green;
-    font-weight: bold;
-}
-
-.offline {
-    color: red;
-    font-weight: bold;
-}
-
-/* 通知區域樣式 */
-#notification-area {
-    padding: 1rem;
-    margin-bottom: 1rem;
-    border-radius: 4px;
-    opacity: 1;
-    transition: opacity 0.5s ease-out;
-}
-
-#notification-area.success {
-    background-color: #d4edda; /* 淡綠色背景 */
-    color: #155724; /* 深綠色文字 */
-    border: 1px solid #c3e6cb;
-}
-
-#notification-area.error {
-    background-color: #f8d7da; /* 淡紅色背景 */
-    color: #721c24; /* 深紅色文字 */
-    border: 1px solid #f5c6cb;
-}
-
-/* 路線規劃連結容器 */
-.directions-link-container {
-     /* padding: 0.5rem 0; */ /* 上下留白 */
-     /* text-align: center; */ /* 文字居中 (如果需要) */
-     /* border-top: 1px dashed #ccc; */ /* 可選：在上方加分隔線 */
-     /* margin-top: 0.5rem; */ /* 與上方項目保持距離 */
-     /* margin-bottom: 1rem; */ /* 與下方項目保持距離 */
-}
-
-/* --- Quill 編輯器樣式修正 --- */
-
-/* 工具欄整體 */
-.ql-toolbar {
-    background-color: var(--card-background-color, #fff); /* 使用 Pico 的卡片背景色或白色 */
-    border-bottom: 1px solid var(--form-element-border-color, #ccc); /* 使用 Pico 的表單邊框色 */
-    padding: 8px !important; /* 增加內邊距，並強制覆蓋 */
-    display: flex; /* 確保內部元素能正確排列 */
-    flex-wrap: wrap; /* 允許換行 */
-    gap: 4px; /* 元素間增加一點空隙 */
-}
-
-/* Quill 工具欄內的按鈕和下拉選單 */
-.ql-toolbar .ql-picker,
-.ql-toolbar button {
-    background: none !important; /* 移除 Pico 的按鈕背景 */
-    border: none !important; /* 移除 Pico 的按鈕邊框 */
-    padding: 4px !important; /* 適當調整內邊距 */
-    margin: 0 !important; /* 移除 Pico 可能添加的外邊距 */
-    width: auto !important; /* 讓寬度自適應 */
-    min-width: unset !important; /* 取消 Pico 的最小寬度 */
-    height: auto !important; /* 高度自適應 */
-    line-height: normal !important; /* 重設行高 */
-    display: inline-flex !important; /* 使用 inline-flex 對齊圖示 */
-    align-items: center; /* 垂直居中圖示 */
-    justify-content: center; /* 水平居中圖示 */
-    color: var(--color, #333); /* 使用 Pico 的預設文字顏色 */
-    cursor: pointer;
-}
-
-/* Quill 工具欄按鈕的 SVG 圖示 */
-.ql-toolbar button svg,
-.ql-toolbar .ql-picker-label svg {
-    vertical-align: middle; /* 嘗試讓 SVG 垂直居中 */
-    width: 18px; /* 稍微調整圖示大小 */
-    height: 18px;
-}
-
-/* Quill 下拉選單標籤 */
-.ql-toolbar .ql-picker-label {
-    padding: 4px !important;
-    border: 1px solid var(--form-element-border-color, #ccc) !important; /* 加回一個簡單的邊框 */
-    border-radius: var(--border-radius, 4px);
-    background-color: var(--form-element-background-color, #fff);
-    display: inline-flex !important; /* 確保和按鈕類似 */
+    display: flex;
     align-items: center;
-    height: auto !important;
-    line-height: normal !important;
-    color: var(--color, #333);
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+#loading-indicator progress {
+    width: 30px;
+    margin-bottom: 0;
 }
 
-/* Quill 下拉選單選項 */
-.ql-picker-options {
-     background-color: var(--card-background-color, #fff) !important;
-     border: 1px solid var(--form-element-border-color, #ccc) !important;
-     border-radius: var(--border-radius, 4px);
-     padding: 0.5rem !important;
+.action-buttons button {
+    width: 100%;
 }
 
-.ql-picker-item {
-    color: var(--color, #333) !important;
-    padding: 0.25rem 0.5rem !important;
+.trip-info-card {
+    background-color: var(--pico-card-background-color);
 }
 
-.ql-picker-item:hover {
-    background-color: var(--primary-hover, #ddd) !important;
+.current-trip-title {
+    margin-bottom: 0.25rem;
 }
 
-/* --- 修正：確保對齊圖示正確顯示 --- */
-.ql-toolbar .ql-align .ql-picker-item {
-    /* 移除可能導致問題的 font-size: 0 */
-    font-size: initial !important; 
-    /* 確保 SVG 可見 */
-    color: var(--color, #333) !important; 
-    width: auto !important; /* 允許 SVG 決定寬度 */
-    padding: 2px !important; /* 稍微減少內邊距，讓圖示更緊湊 */
-}
-
-.ql-toolbar .ql-align .ql-picker-item svg {
-    width: initial !important; /* 使用 SVG 原始寬度 */
-    height: initial !important; /* 使用 SVG 原始高度 */
-    display: inline-block !important; /* 確保 SVG 正確顯示 */
-    vertical-align: middle;
-}
-/* --- 對齊圖示修正結束 --- */
-
-/* 編輯器區域 */
-#notes-editor {
-    background-color: var(--form-element-background-color, #fff); /* 設定背景色 */
-    color: var(--color, #333); /* 設定文字顏色 */
-    border: 1px solid var(--form-element-border-color, #ccc) !important; /* 確保邊框可見 */
-    border-top: none !important; /* 移除頂部邊框，因為工具欄已有底部邊框 */
-    min-height: 200px; /* 保持最小高度 */
-    border-radius: 0 0 var(--border-radius, 4px) var(--border-radius, 4px); /* 底部圓角 */
-}
-
-/* 編輯器內容區域 */
-.ql-editor {
-    min-height: inherit; /* 繼承父元素的最小高度 */
-    padding: 12px;
-}
-
-/* --- Quill 自訂字型對應 --- */
-.ql-font-sans-serif {
-  font-family: sans-serif; /* Quill 預設 */
-}
-.ql-font-serif {
-  font-family: serif;
-}
-.ql-font-monospace {
-  font-family: monospace;
-}
-.ql-font-noto-sans-tc {
-  font-family: 'Noto Sans TC', sans-serif;
-}
-.ql-font-noto-serif-tc {
-  font-family: 'Noto Serif TC', serif;
-}
-
-/* --- Quill 字型下拉選單文字調整 --- */
-
-/* 隱藏原始選項文字 (技術名稱) - 簡化方式 */
-.ql-font .ql-picker-item {
-    font-size: 0 !important; 
-    line-height: 1 !important; /* 保持行高，避免元素摺疊 */
-    /* 保留原有的 padding 和其他布局屬性 */
-}
-
-/* 使用 ::before 插入新的顯示文字 */
-.ql-font .ql-picker-item::before {
-    content: attr(data-value); /* 預設顯示 data-value 以便除錯 */
-    font-size: initial !important; /* 恢復正常字體大小 */
-    line-height: initial !important; /* 恢復正常行高 */
-    color: var(--color, #333) !important; /* 確保文字可見 */
-    /* 不需要絕對定位 */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: inline-block; /* 或者 block，根據需要 */
-    width: 100%; /* 佔滿可用寬度 */
-}
-
-.ql-font .ql-picker-item[data-value="sans-serif"]::before {
-    content: "無襯線 (預設)" !important;
-    font-family: sans-serif;
-}
-
-.ql-font .ql-picker-item[data-value="serif"]::before {
-    content: "襯線體" !important;
-    font-family: serif;
-}
-
-.ql-font .ql-picker-item[data-value="monospace"]::before {
-    content: "等寬體" !important;
-    font-family: monospace;
-}
-
-.ql-font .ql-picker-item[data-value="noto-sans-tc"]::before {
-    content: "黑體" !important;
-    font-family: 'Noto Sans TC', sans-serif;
-}
-
-.ql-font .ql-picker-item[data-value="noto-serif-tc"]::before {
-    content: "宋體" !important;
-    font-family: 'Noto Serif TC', serif;
-}
-
-/* 全域變數 */
-:root {
-  --accent-color: #3498db;
-  --primary-hover: #2980b9;
-  --success-color: #2ecc71;
-  --warning-color: #f39c12;
-  --error-color: #e74c3c;
-  --border-radius: 8px;
-  --transition-speed: 0.3s;
-  --box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  
-  /* Trips Icon Colors */
-  --transport-color: #3498db;
-  --accommodation-color: #9b59b6;
-  --activity-color: #f1c40f;
-  --food-color: #e67e22;
-  --other-color: #95a5a6;
-}
-
-/* 基本元素樣式 */
-body {
-  scroll-behavior: smooth;
-  line-height: 1.6;
-}
-
-h1, h2, h3, h4, h5, h6 {
-  margin-bottom: 0.5rem;
-}
-
-h2.with-icon i, h3.with-icon i {
-  margin-right: 0.5rem;
-  opacity: 0.8;
-}
-
-.badge {
-  border-radius: 99px;
-  padding: 0.25rem 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-/* 卡片與容器 */
-article.trip-info-card {
-  margin-top: 1.5rem;
-  transition: transform var(--transition-speed), box-shadow var(--transition-speed);
-}
-
-article.trip-info-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--box-shadow);
-}
-
-.action-buttons {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-  align-items: flex-end;
-}
-
-.trip-actions {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-}
-
-.total-cost-section {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.trip-info-card .trip-actions {
+    text-align: right;
 }
 
 .qrcode-display {
-  margin: 1rem 0;
-  padding: 1rem;
-  border-radius: var(--border-radius);
-  background: rgba(255, 255, 255, 0.05);
-  display: flex;
-  justify-content: center;
+    padding: 1rem;
+    text-align: center;
+    background-color: var(--pico-contrast-background);
+    border-radius: var(--pico-border-radius);
+    margin-top: 1rem;
 }
 
-/* 連線狀態 */
-#connection-status.online {
-  background-color: var(--success-color);
-  color: white;
+.qrcode-display img {
+    max-width: 150px;
+    height: auto;
+    display: inline-block;
 }
 
-#connection-status.offline {
-  background-color: var(--error-color);
-  color: white;
+.total-cost-section {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: var(--pico-font-weight-semibold);
 }
 
-#pending-writes-indicator {
-  background-color: var(--warning-color);
-  color: white;
-}
-
-/* 行程列表 */
-#itinerary-list {
-  list-style-type: none;
-  padding: 0;
+#total-cost-display {
+    font-size: 1.1em;
 }
 
 .itinerary-container {
-  margin-top: 1rem;
-  padding: 0 0.25rem;
+}
+
+.sortable-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
 }
 
 .sortable-list li {
-  cursor: grab;
-  border-radius: var(--border-radius);
-  margin-bottom: 0.75rem;
-  padding: 0.75rem 1rem;
-  transition: background-color var(--transition-speed);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    background-color: var(--pico-card-background-color);
+    border: 1px solid var(--pico-card-border-color);
+    border-radius: var(--pico-border-radius);
+    box-shadow: var(--pico-card-box-shadow);
+    cursor: grab;
+    transition: background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }
 
 .sortable-list li:hover {
-  background-color: rgba(0, 0, 0, 0.03);
+    background-color: var(--pico-card-background-color-hover);
+    border-color: var(--pico-card-border-color-hover);
+    box-shadow: var(--pico-card-box-shadow-hover);
 }
 
-.sortable-list li:active {
-  cursor: grabbing;
+.drag-handle {
+    cursor: grab;
+    color: var(--pico-secondary);
+    padding: 0.5rem;
+    margin-right: -0.5rem;
+}
+.drag-handle:active {
+    cursor: grabbing;
 }
 
-/* 行程類型標記 */
+.item-content {
+}
+
+.item-content span:first-of-type {
+    display: block;
+    margin-bottom: 0.25rem;
+}
+.item-content small {
+    color: var(--pico-secondary);
+    display: block;
+}
+.item-content .item-cost {
+    font-weight: var(--pico-font-weight-semibold);
+    color: var(--pico-primary);
+}
+
+.item-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
 .item-type-badge {
-  display: inline-block;
-  padding: 0.1rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  margin-right: 0.5rem;
+    display: inline-block;
+    padding: 0.2em 0.6em;
+    font-size: 0.8em;
+    font-weight: var(--pico-font-weight-semibold);
+    border-radius: var(--pico-border-radius);
+    margin-right: 0.5rem;
+    color: #fff;
 }
 
-.item-type-transport {
-  background-color: var(--transport-color);
-  color: white;
-}
+.item-type-transport { background-color: var(--pico-color-blue-500); }
+.item-type-accommodation { background-color: var(--pico-color-purple-500); }
+.item-type-activity { background-color: var(--pico-color-green-500); }
+.item-type-food { background-color: var(--pico-color-orange-500); }
+.item-type-other { background-color: var(--pico-color-gray-500); }
 
-.item-type-accommodation {
-  background-color: var(--accommodation-color);
-  color: white;
-}
-
-.item-type-activity {
-  background-color: var(--activity-color);
-  color: black;
-}
-
-.item-type-food {
-  background-color: var(--food-color);
-  color: white;
-}
-
-.item-type-other {
-  background-color: var(--other-color);
-  color: white;
-}
-
-/* 方向連結樣式 */
 .directions-link-container {
-  padding: 0.5rem;
-  margin-bottom: 0.75rem;
-  text-align: center;
-  border-left: 3px dashed rgba(0, 0, 0, 0.1);
-  border-right: 3px dashed rgba(0, 0, 0, 0.1);
+    padding: 0.75rem 1rem;
+    margin-top: -1rem;
+    margin-bottom: 1rem;
+    background-color: var(--pico-card-sectioning-background-color);
+    border: 1px solid var(--pico-card-border-color);
+    border-top: none;
+    border-radius: 0 0 var(--pico-border-radius) var(--pico-border-radius);
+    text-align: right;
 }
 
 .directions-link-container a {
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  opacity: 0.75;
-  transition: opacity var(--transition-speed);
+    text-decoration: none;
 }
 
-.directions-link-container a:hover {
-  opacity: 1;
+.sortable-list li.sortable-ghost {
+    opacity: 0.5;
+    background-color: var(--pico-primary-background) !important;
+    border-style: dashed;
 }
 
-/* 攝像頭和掃描容器 */
+.sortable-list li.sortable-chosen {
+    cursor: grabbing;
+    box-shadow: var(--pico-box-shadow-inset);
+}
+
+#notification-area {
+    margin-bottom: 1.5rem;
+}
+
+#connection-status {
+}
+#connection-status.online {
+    background-color: var(--pico-color-green-500);
+    color: white;
+}
+#connection-status.offline {
+    background-color: var(--pico-color-red-500);
+    color: white;
+}
+#pending-writes-indicator {
+    background-color: var(--pico-color-orange-500);
+    color: white;
+    margin-left: 0.5rem;
+}
+
+dialog::backdrop {
+    background-color: rgba(24, 30, 38, 0.6);
+    backdrop-filter: blur(3px);
+}
+
+dialog > article {
+    max-width: 700px;
+    box-shadow: var(--pico-box-shadow-overlay);
+}
+
+dialog header a.close {
+    margin-left: auto;
+}
+
 .camera-container, .scan-container {
-  position: relative;
-  width: 100%;
-  max-width: 500px;
-  margin: 1rem auto;
-  border-radius: var(--border-radius);
-  overflow: hidden;
-  box-shadow: var(--box-shadow);
+    position: relative;
+    max-width: 100%;
+    margin-bottom: 1rem;
+    background-color: #000;
+    border-radius: var(--pico-border-radius);
+    overflow: hidden;
 }
-
 .camera-container video, .scan-container video {
-  width: 100%;
-  height: auto;
-  display: block;
-  background-color: #333;
+    display: block;
+    width: 100%;
+    height: auto;
 }
 
-/* 通知樣式 */
-.alert {
-  border-radius: var(--border-radius);
-  padding: 1rem;
-  margin-bottom: 1rem;
-  animation: fadeIn 0.3s ease-in-out;
+.camera-container canvas, .scan-container canvas {
+    display: none;
 }
 
-.alert.success {
-  background-color: rgba(46, 204, 113, 0.1);
-  border: 1px solid var(--success-color);
+@media (max-width: 992px) {
+    .grid-span-2 {
+        grid-column: span 1;
+    }
+    .add-item-button-container {
+        grid-column: span 1;
+    }
 }
 
-.alert.error {
-  background-color: rgba(231, 76, 60, 0.1);
-  border: 1px solid var(--error-color);
-}
-
-.alert.warning {
-  background-color: rgba(243, 156, 18, 0.1);
-  border: 1px solid var(--warning-color);
-}
-
-/* 動畫 */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
-}
-
-/* 響應式調整 */
 @media (max-width: 768px) {
-  .grid {
-    grid-template-columns: 1fr !important;
-  }
-  
-  .action-buttons {
-    margin-top: 0.5rem;
-    justify-content: flex-start;
-  }
-  
-  h1 {
-    font-size: 1.5rem;
-  }
-  
-  article.trip-info-card footer {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+    body {
+        padding: 0.5rem;
+    }
+    .grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    .load-by-id, .select-saved {
+        margin-top: 0;
+    }
+    .select-saved .action-buttons {
+        grid-template-columns: 1fr 1fr;
+    }
+    article > header, article > footer {
+        padding: var(--pico-block-spacing-vertical) var(--pico-block-spacing-horizontal);
+    }
+    .sortable-list li {
+        grid-template-columns: auto 1fr;
+        gap: 0.5rem;
+    }
+    .item-actions {
+        grid-column: 2;
+        justify-self: end;
+        margin-top: 0.5rem;
+    }
+    .directions-link-container {
+        text-align: center;
+    }
 }
 
 @media (max-width: 576px) {
-  nav ul li {
-    margin-left: 0.5rem;
-  }
-  
-  #total-cost-display {
-    font-size: 0.9rem;
-  }
+    h1 { font-size: 1.75rem; }
+    h2 { font-size: 1.3rem; }
+    nav ul li { padding: 0.5rem; }
+    .select-saved .action-buttons {
+        grid-template-columns: 1fr;
+    }
+    #total-cost-display {
+        font-size: 1em;
+    }
+    .item-type-badge {
+        display: block;
+        margin-bottom: 0.3rem;
+        text-align: center;
+        width: fit-content;
+        margin-right: auto;
+    }
+    .item-content span:first-of-type {
+        font-size: 0.95em;
+    }
+    .item-actions button {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.85em;
+    }
 }
 
-/* 無障礙增強 */
 :focus-visible {
-  outline: 2px solid var(--accent-color);
-  outline-offset: 2px;
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
 }
 
-/* 主題選擇器 */
 .theme-selector {
-  margin-left: 1rem;
+    margin-left: 1rem;
 }
 
 .theme-selector select {
-  margin: 0;
-  padding: 0.3rem 0.5rem;
-  border-radius: var(--border-radius);
-  background-color: var(--pico-background-color);
-  color: var(--pico-color);
-  border: 1px solid var(--pico-form-element-border-color);
-  cursor: pointer;
+    margin: 0;
+    padding: 0.3rem 0.5rem;
+    border-radius: var(--border-radius);
+    background-color: var(--pico-background-color);
+    color: var(--pico-color);
+    border: 1px solid var(--pico-form-element-border-color);
+    cursor: pointer;
 }
 
-/* 淺色主題 (預設) */
 :root, [data-theme="light"] {
-  --pico-text-selection-color: rgba(24, 144, 255, 0.2);
-  
-  /* 保留預設的淺色系變數，不需要設置 */
+    --pico-text-selection-color: rgba(24, 144, 255, 0.2);
 }
 
-/* 深色主題 */
 [data-theme="dark"] {
-  --pico-background-color: #12151a;
-  --pico-color: #e3e3e3;
-  --pico-secondary: #a0aab5; 
-  --pico-card-background-color: #1d2026;
-  --pico-card-border-color: #303b44;
-  --pico-form-element-background-color: #282c34;
-  --pico-form-element-border-color: #3d4555;
-  --pico-form-element-focus-border-color: var(--pico-primary);
-  --pico-primary-inverse: #FFF;
-  --pico-secondary-inverse: #FFF;
-  --pico-contrast-inverse: #000; 
+    --pico-background-color: #12151a;
+    --pico-color: #e3e3e3;
+    --pico-secondary: #a0aab5;
+    --pico-card-background-color: #1d2026;
+    --pico-card-border-color: #303b44;
+    --pico-form-element-background-color: #282c34;
+    --pico-form-element-border-color: #3d4555;
+    --pico-form-element-focus-border-color: var(--pico-primary);
+    --pico-primary-inverse: #FFF;
+    --pico-secondary-inverse: #FFF;
+    --pico-contrast-inverse: #000;
 
-  /* 深色特定樣式 */
-  .directions-link-container {
-    border-left: 3px dashed rgba(255, 255, 255, 0.1);
-    border-right: 3px dashed rgba(255, 255, 255, 0.1);
-  }
+    .directions-link-container {
+        border-left: 3px dashed rgba(255, 255, 255, 0.1);
+        border-right: 3px dashed rgba(255, 255, 255, 0.1);
+    }
 
-  .ql-toolbar .ql-picker-label svg, 
-  .ql-toolbar button svg {
-    fill: var(--pico-color) !important;
-  }
+    .ql-toolbar .ql-picker-label svg,
+    .ql-toolbar button svg {
+        fill: var(--pico-color) !important;
+    }
 }
 
-/* 紫色主題 */
 [data-theme="purple"] {
-  --pico-background-color: #f9f5ff;
-  --pico-color: #4b1d89;
-  --pico-secondary: #6c4998;
-  --pico-card-background-color: #ffffff;
-  --pico-card-border-color: #d9c5f7;
-  --pico-form-element-background-color: #ffffff;
-  --pico-form-element-border-color: #d9c5f7;
-  --pico-form-element-focus-border-color: #8a2be2;
-  --pico-primary: #8a2be2;
-  --pico-primary-hover: #7120bc;
-  --pico-primary-focus: rgba(138, 43, 226, 0.25);
-  --pico-primary-inverse: #FFF;
+    --pico-background-color: #f9f5ff;
+    --pico-color: #4b1d89;
+    --pico-secondary: #6c4998;
+    --pico-card-background-color: #ffffff;
+    --pico-card-border-color: #d9c5f7;
+    --pico-form-element-background-color: #ffffff;
+    --pico-form-element-border-color: #d9c5f7;
+    --pico-form-element-focus-border-color: #8a2be2;
+    --pico-primary: #8a2be2;
+    --pico-primary-hover: #7120bc;
+    --pico-primary-focus: rgba(138, 43, 226, 0.25);
+    --pico-primary-inverse: #FFF;
 
-  /* 紫色特定樣式 */
-  .directions-link-container {
-    border-left: 3px dashed rgba(138, 43, 226, 0.2);
-    border-right: 3px dashed rgba(138, 43, 226, 0.2);
-  }
-  
-  .badge {
-    background-color: #8a2be2;
-    color: white;
-  }
+    .directions-link-container {
+        border-left: 3px dashed rgba(138, 43, 226, 0.2);
+        border-right: 3px dashed rgba(138, 43, 226, 0.2);
+    }
+    
+    .badge {
+        background-color: #8a2be2;
+        color: white;
+    }
 
-  #connection-status.online {
-    background-color: #8a2be2;
-  }
+    #connection-status.online {
+        background-color: #8a2be2;
+    }
 }
 
-/* 綠色主題 */
 [data-theme="green"] {
-  --pico-background-color: #f4fff9;
-  --pico-color: #146934;
-  --pico-secondary: #2a7a4b;
-  --pico-card-background-color: #ffffff;
-  --pico-card-border-color: #c5f7d9;
-  --pico-form-element-background-color: #ffffff;
-  --pico-form-element-border-color: #c5f7d9;
-  --pico-form-element-focus-border-color: #08a045;
-  --pico-primary: #08a045;
-  --pico-primary-hover: #078f3e;
-  --pico-primary-focus: rgba(8, 160, 69, 0.25);
-  --pico-primary-inverse: #FFF;
+    --pico-background-color: #f4fff9;
+    --pico-color: #146934;
+    --pico-secondary: #2a7a4b;
+    --pico-card-background-color: #ffffff;
+    --pico-card-border-color: #c5f7d9;
+    --pico-form-element-background-color: #ffffff;
+    --pico-form-element-border-color: #c5f7d9;
+    --pico-form-element-focus-border-color: #08a045;
+    --pico-primary: #08a045;
+    --pico-primary-hover: #078f3e;
+    --pico-primary-focus: rgba(8, 160, 69, 0.25);
+    --pico-primary-inverse: #FFF;
 
-  /* 綠色特定樣式 */
-  .directions-link-container {
-    border-left: 3px dashed rgba(8, 160, 69, 0.2);
-    border-right: 3px dashed rgba(8, 160, 69, 0.2);
-  }
-  
-  .badge {
-    background-color: #08a045;
-    color: white;
-  }
+    .directions-link-container {
+        border-left: 3px dashed rgba(8, 160, 69, 0.2);
+        border-right: 3px dashed rgba(8, 160, 69, 0.2);
+    }
+    
+    .badge {
+        background-color: #08a045;
+        color: white;
+    }
 
-  #connection-status.online {
-    background-color: #08a045;
-  }
+    #connection-status.online {
+        background-color: #08a045;
+    }
 }
 
-/* 藍色主題 */
 [data-theme="blue"] {
-  --pico-background-color: #f0f8ff;
-  --pico-color: #0c4a89;
-  --pico-secondary: #2371b7;
-  --pico-card-background-color: #ffffff;
-  --pico-card-border-color: #c5e0f7;
-  --pico-form-element-background-color: #ffffff;
-  --pico-form-element-border-color: #c5e0f7;
-  --pico-form-element-focus-border-color: #0277bd;
-  --pico-primary: #0277bd;
-  --pico-primary-hover: #01579b;
-  --pico-primary-focus: rgba(2, 119, 189, 0.25);
-  --pico-primary-inverse: #FFF;
+    --pico-background-color: #f0f8ff;
+    --pico-color: #0c4a89;
+    --pico-secondary: #2371b7;
+    --pico-card-background-color: #ffffff;
+    --pico-card-border-color: #c5e0f7;
+    --pico-form-element-background-color: #ffffff;
+    --pico-form-element-border-color: #c5e0f7;
+    --pico-form-element-focus-border-color: #0277bd;
+    --pico-primary: #0277bd;
+    --pico-primary-hover: #01579b;
+    --pico-primary-focus: rgba(2, 119, 189, 0.25);
+    --pico-primary-inverse: #FFF;
 
-  /* 藍色特定樣式 */
-  .directions-link-container {
-    border-left: 3px dashed rgba(2, 119, 189, 0.2);
-    border-right: 3px dashed rgba(2, 119, 189, 0.2);
-  }
-  
-  .badge {
-    background-color: #0277bd;
-    color: white;
-  }
+    .directions-link-container {
+        border-left: 3px dashed rgba(2, 119, 189, 0.2);
+        border-right: 3px dashed rgba(2, 119, 189, 0.2);
+    }
+    
+    .badge {
+        background-color: #0277bd;
+        color: white;
+    }
 
-  #connection-status.online {
-    background-color: #0277bd;
-  }
+    #connection-status.online {
+        background-color: #0277bd;
+    }
 } 

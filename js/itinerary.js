@@ -123,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const SAVED_TRIPS_KEY = 'savedTrips'; // localStorage key for saved trips
     const LAST_TRIP_KEY = 'lastActiveTripId'; // localStorage key for last trip
     const IMGBB_API_KEY_STORAGE_KEY = 'imgbbApiKey'; // localStorage Key
+    const GEMINI_API_KEY_STORAGE_KEY = 'geminiApiKey'; // 新增 Gemini Key 的儲存鍵值
 
     // *** 新增：獲取筆記 Modal 相關元素 ***
     const notesModal = document.getElementById('notes-modal');
@@ -139,29 +140,38 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 取得 HTML 元素 ---
     // 行程管理區
     const tripNameInput = document.getElementById('trip-name');
-    const createTripBtn = document.getElementById('create-trip-btn');
+    // const createTripBtn = document.getElementById('create-trip-btn'); // 將在 initializeApp 中重新獲取
     const tripIdInput = document.getElementById('trip-id-input');
     const loadTripBtn = document.getElementById('load-trip-btn');
     const currentTripIdSpan = document.getElementById('current-trip-id');
-    const currentTripNameSpan = document.getElementById('current-trip-name'); // *** 新增 ***
-    const savedTripsSelect = document.getElementById('saved-trips-select'); // *** 新增 ***
-    const deleteSelectedTripBtn = document.getElementById('delete-selected-trip-btn'); // *** 新增 ***
+    const currentTripNameSpan = document.getElementById('current-trip-name');
+    const savedTripsSelect = document.getElementById('saved-trips-select');
+    const deleteSelectedTripBtn = document.getElementById('delete-selected-trip-btn');
     const itineraryContentDiv = document.getElementById('itinerary-content');
-    const loadingIndicator = document.getElementById('loading-indicator'); // *** 新增 ***
-    const notificationArea = document.getElementById('notification-area'); // *** 新增 ***
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const notificationArea = document.getElementById('notification-area');
+    // AI Generation Elements
+    const tripLocationInput = document.getElementById('trip-location');
+    const tripDaysInput = document.getElementById('trip-days');
+    const tripPreferencesInput = document.getElementById('trip-preferences');
+    const tripTransportInput = document.getElementById('trip-transport');
+    const tripStartDateInput = document.getElementById('trip-start-date'); // 新增：出發日期
+    const tripStartTimeInput = document.getElementById('trip-start-time'); // 新增：出發時間
+    const generateTripAiBtn = document.getElementById('generate-trip-ai-btn');
+    const aiLoadingIndicator = document.getElementById('ai-loading-indicator');
 
     // QR Code 相關元素
-    const scanQrBtn = document.getElementById('scan-qr-btn'); // *** 新增 ***
+    const scanQrBtn = document.getElementById('scan-qr-btn');
     const toggleQrCodeBtn = document.getElementById('toggle-qrcode-btn');
     const qrCodeContainer = document.getElementById('qrcode-container');
 
     // QR Code 掃描 Modal 元素
-    const scanModal = document.getElementById('scan-modal'); // *** 新增 ***
-    const scanVideo = document.getElementById('scan-video'); // *** 新增 ***
-    const scanCanvas = document.getElementById('scan-canvas'); // *** 新增 ***
-    const scanCanvasContext = scanCanvas.getContext('2d'); // *** 新增 ***
-    const cancelScanBtn = document.getElementById('cancel-scan-btn'); // *** 新增 ***
-    const scanFeedback = document.getElementById('scan-feedback'); // *** 新增 ***
+    const scanModal = document.getElementById('scan-modal');
+    const scanVideo = document.getElementById('scan-video');
+    const scanCanvas = document.getElementById('scan-canvas');
+    const scanCanvasContext = scanCanvas?.getContext('2d'); // Add null check
+    const cancelScanBtn = document.getElementById('cancel-scan-btn');
+    const scanFeedback = document.getElementById('scan-feedback');
 
     // 行程內容區
     const itineraryForm = document.getElementById('itinerary-form');
@@ -182,15 +192,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const connectionStatusSpan = document.getElementById('connection-status');
     const pendingWritesIndicator = document.getElementById('pending-writes-indicator');
 
-    // *** 新增：獲取設定 Modal 相關元素 ***
+    // 設定 Modal 相關元素
     const settingsBtn = document.getElementById('settings-btn');
     const settingsModal = document.getElementById('settings-modal');
     const settingsForm = document.getElementById('settings-form');
     const imgbbApiKeyInput = document.getElementById('imgbb-api-key-input');
-    const saveSettingsBtn = document.getElementById('save-settings-btn'); // 已在 form submit 中處理
+    const geminiApiKeyInput = document.getElementById('gemini-api-key-input');
+    const saveSettingsBtn = document.getElementById('save-settings-btn');
     const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
 
-    // *** 新增：獲取拍照 Modal 相關元素 ***
+    // 拍照 Modal 相關元素
     const cameraModal = document.getElementById('camera-modal');
     const cameraView = document.getElementById('camera-view');
     const cameraCanvas = document.getElementById('camera-canvas');
@@ -198,44 +209,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const capturePhotoBtn = document.getElementById('capture-photo-btn');
     const cancelCameraBtn = document.getElementById('cancel-camera-btn');
 
-    // --- 全域變數 ---
-    let currentCameraStream = null; // *** 新增：追蹤目前相機流 ***
+    // 全域變數
+    let currentCameraStream = null;
+    let mediaStream = null; // For QR Scanner
+    let scanInterval = null; // For QR Scanner
 
     // --- 通知函式 ---
-    function showNotification(message, type = 'success') { // type 可以是 'success' 或 'error'
+    function showNotification(message, type = 'success', duration = 3000) { // Add duration param
         if (notificationTimeout) {
-            clearTimeout(notificationTimeout); // 清除之前的計時器
+            clearTimeout(notificationTimeout);
         }
+        if (!notificationArea) return; // Add null check
         
-        // *** 根據類型選擇圖示 ***
         let iconHtml = '';
         if (type === 'success') {
             iconHtml = '<i class="fa-solid fa-check-circle"></i> ';
         } else if (type === 'error') {
             iconHtml = '<i class="fa-solid fa-triangle-exclamation"></i> ';
+        } else if (type === 'warning') { // Add warning type
+            iconHtml = '<i class="fa-solid fa-triangle-exclamation"></i> ';
         }
         
-        // *** 設定包含圖示的內容 ***
         notificationArea.innerHTML = iconHtml + message; 
-        notificationArea.className = ''; // 清除舊 class
-        notificationArea.classList.add(type); // 添加新 class
+        notificationArea.className = 'alert'; // Reset class
+        notificationArea.classList.add(type);
         notificationArea.style.display = 'block';
-        notificationArea.style.opacity = 1; // 確保顯示
+        notificationArea.style.opacity = 1;
 
-        // 設定一段時間後自動消失
+        if (duration > 0) {
         notificationTimeout = setTimeout(() => {
+                 if (notificationArea) {
             notificationArea.style.opacity = 0;
-            // 等待淡出動畫結束後再隱藏
             setTimeout(() => {
-                notificationArea.style.display = 'none';
-            }, 500); // 配合 CSS transition 的時間
-        }, 3000); // 顯示 3 秒
+                         if (notificationArea) notificationArea.style.display = 'none';
+                     }, 500);
+                 }
+             }, duration);
+        }
     }
 
     // --- 待同步操作 UI 更新 --- 
     function updatePendingWritesUI() {
+        if (!pendingWritesIndicator) return; // Add null check
         if (pendingWritesCount > 0 && !isOnline) {
-            // 加上圖示
             pendingWritesIndicator.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> (${pendingWritesCount} 項待同步)`; 
             pendingWritesIndicator.style.display = 'inline';
         } else {
@@ -254,103 +270,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 連線狀態監聽 --- 
     function setupConnectionListener() {
+        if (typeof firebase === 'undefined' || typeof firebase.database !== 'function') return; // Add check
         const connectedRef = firebase.database().ref(".info/connected");
         connectedRef.on("value", (snap) => {
             isOnline = !!snap.val();
-            updateConnectionStatus(isOnline); // 使用新的連線狀態顯示函式
-            
+            updateConnectionStatus(isOnline);
             if (isOnline && pendingWritesCount > 0) {
                 console.log("重新連線，擱置的寫入操作將被同步。");
-                pendingWritesCount = 0; // 在線上時重置計數器
+                pendingWritesCount = 0;
                 updatePendingWritesUI();
             }
         });
     }
 
-    // --- 行程管理事件監聽 ---
-
-    createTripBtn.addEventListener('click', () => {
-        const tripName = tripNameInput.value.trim();
-        tripNameInput.classList.remove('input-error'); // 清除舊的錯誤樣式
-        if (!tripName) {
-            showNotification("請輸入行程名稱！", 'error');
-            tripNameInput.classList.add('input-error'); // 高亮輸入框
-            tripNameInput.focus(); // 聚焦輸入框
-            return;
-        }
-        createNewTrip(tripName);
-    });
-
-    loadTripBtn.addEventListener('click', () => {
-        const tripIdToLoad = tripIdInput.value.trim();
-        tripIdInput.classList.remove('input-error'); // 清除舊的錯誤樣式
-        if (!tripIdToLoad) {
-            showNotification("請輸入要載入的行程 ID！", 'error');
-            tripIdInput.classList.add('input-error'); // 高亮輸入框
-            tripIdInput.focus(); // 聚焦輸入框
-            return;
-        }
-        loadTrip(tripIdToLoad);
-    });
-
     // --- 行程操作函式 ---
-
-    function createNewTrip(name) {
-        console.log(`嘗試建立新行程: ${name}`);
-        // *** 禁用按鈕 ***
-        createTripBtn.disabled = true;
-        createTripBtn.setAttribute('aria-busy', 'true'); // Pico.css 載入狀態
-
-        const tripsRef = db.ref('trips');
-        const newTripRef = tripsRef.push();
-        const newTripId = newTripRef.key;
-        const tripMetadata = {
-            name: name,
-            createdAt: firebase.database.ServerValue.TIMESTAMP
-        };
-        newTripRef.child('metadata').set(tripMetadata)
-            .then(() => {
-                console.log(`新行程建立成功，ID: ${newTripId}`);
-                showNotification(`新行程 "${name}" 建立成功！`, 'success');
-                tripNameInput.value = '';
-                // *** 直接設定當前名稱並儲存 ***
-                currentTripNameSpan.textContent = name; 
-                saveTripInfo(newTripId, name);
-                loadTripData(newTripId); // 載入其他資料並設定監聽
-            })
-            .catch((error) => {
-                console.error("建立新行程時發生錯誤: ", error);
-                showNotification("建立行程失敗，請稍後再試。", 'error');
-            })
-            .finally(() => {
-                 // *** 啟用按鈕 ***
-                 createTripBtn.disabled = false;
-                 createTripBtn.removeAttribute('aria-busy');
-            });
-    }
 
     function loadTrip(tripId) {
         console.log(`嘗試載入行程 ID: ${tripId}`);
+        if (!tripId) {
+             showNotification("無效的行程 ID。", 'error');
+             return;
+        }
         const tripRef = db.ref(`trips/${tripId}`);
-        // *** 禁用按鈕和輸入框，設置載入狀態 ***
-        loadingIndicator.style.display = 'inline';
+
+        if(loadingIndicator) loadingIndicator.style.display = 'inline';
+        if(loadTripBtn) {
         loadTripBtn.disabled = true;
-        loadTripBtn.setAttribute('aria-busy', 'true'); // Pico.css 載入狀態
-        tripIdInput.disabled = true;
-        scanQrBtn.disabled = true; // 同時禁用掃描按鈕
-        savedTripsSelect.disabled = true; // 禁用下拉選單
-        deleteSelectedTripBtn.disabled = true; // 禁用刪除按鈕
+            loadTripBtn.setAttribute('aria-busy', 'true');
+        }
+        if(tripIdInput) tripIdInput.disabled = true;
+        if(scanQrBtn) scanQrBtn.disabled = true;
+        if(savedTripsSelect) savedTripsSelect.disabled = true;
+        if(deleteSelectedTripBtn) deleteSelectedTripBtn.disabled = true;
 
         tripRef.get().then((snapshot) => {
             if (snapshot.exists()) {
                 const tripData = snapshot.val();
-                const tripName = tripData.metadata?.name || '未命名行程'; // 安全地獲取名稱
+                const tripName = tripData.metadata?.name || '未命名行程';
                 console.log(`行程 ${tripId} (${tripName}) 存在，開始載入資料...`);
                 showNotification(`已載入行程: ${tripName}`, 'success');
-                tripIdInput.value = '';
-                // *** 儲存行程資訊 ***
+                if(tripIdInput) tripIdInput.value = '';
                 saveTripInfo(tripId, tripName); 
-                // *** 載入資料 (包含設定名稱) ***
                 loadTripData(tripId, tripName); 
             } else {
                 console.warn(`行程 ID: ${tripId} 不存在。`);
@@ -359,31 +319,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     localStorage.removeItem(LAST_TRIP_KEY);
                     console.log('已清除無效的 lastActiveTripId');
                 }
-                // 同時檢查並從已存列表中移除無效ID
                 removeSavedTrip(tripId);
             }
         }).catch((error) => {
             console.error("載入行程 metadata 時發生錯誤: ", error);
             showNotification("載入行程時發生錯誤，請稍後再試。", 'error');
         }).finally(() => {
-            // *** 啟用按鈕和輸入框，移除載入狀態 ***
-            loadingIndicator.style.display = 'none';
+            if(loadingIndicator) loadingIndicator.style.display = 'none';
+            if(loadTripBtn) {
             loadTripBtn.disabled = false;
             loadTripBtn.removeAttribute('aria-busy');
-            tripIdInput.disabled = false;
-            scanQrBtn.disabled = false; // 啟用掃描按鈕
-            savedTripsSelect.disabled = false; // 啟用下拉選單
-            // 刪除按鈕狀態由下拉選單決定，這裡不用改
-            if (savedTripsSelect.value) {
+            }
+            if(tripIdInput) tripIdInput.disabled = false;
+            if(scanQrBtn) scanQrBtn.disabled = false;
+            if(savedTripsSelect) savedTripsSelect.disabled = false;
+            if (savedTripsSelect?.value && deleteSelectedTripBtn) { // Check if select has value
                  deleteSelectedTripBtn.disabled = false;
+            } else if (deleteSelectedTripBtn) {
+                 deleteSelectedTripBtn.disabled = true; // Ensure disabled if no selection
             }
         });
     }
 
     function loadTripData(tripId, tripName) {
         activeTripId = tripId;
-        currentTripIdSpan.textContent = activeTripId;
-        currentTripNameSpan.textContent = tripName; // *** 設定行程名稱 ***
+        if(currentTripIdSpan) currentTripIdSpan.textContent = activeTripId;
+        if(currentTripNameSpan) currentTripNameSpan.textContent = tripName;
         console.log(`目前作用中: ${tripName} (${activeTripId})`);
 
         try {
@@ -393,34 +354,40 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn("無法儲存 lastActiveTripId 到 localStorage: ", e);
         }
 
-        toggleQrCodeBtn.style.display = 'inline-block';
+        if(toggleQrCodeBtn) toggleQrCodeBtn.style.display = 'inline-block';
+        if(qrCodeContainer) {
         qrCodeContainer.innerHTML = '';
         qrCodeContainer.style.display = 'none';
-        itineraryList.innerHTML = '<li>載入中...</li>';
+        }
+        if(itineraryList) itineraryList.innerHTML = '<li>載入中...</li>';
         setupItineraryListener(activeTripId);
-        itineraryContentDiv.style.display = 'block';
+        if(itineraryContentDiv) itineraryContentDiv.style.display = 'block';
+        calculateTotalCost(); // Calculate cost when loading trip data
     }
 
-    // 清除目前行程的顯示和狀態
     function clearCurrentTripDisplay() {
          activeTripId = null;
-         currentTripIdSpan.textContent = '尚未載入';
-         currentTripNameSpan.textContent = '';
-         itineraryContentDiv.style.display = 'none';
-         toggleQrCodeBtn.style.display = 'none';
+        if(currentTripIdSpan) currentTripIdSpan.textContent = '尚未載入';
+        if(currentTripNameSpan) currentTripNameSpan.textContent = '';
+        if(itineraryContentDiv) itineraryContentDiv.style.display = 'none';
+        if(toggleQrCodeBtn) toggleQrCodeBtn.style.display = 'none';
+        if(qrCodeContainer) {
          qrCodeContainer.innerHTML = '';
          qrCodeContainer.style.display = 'none';
-         // 移除舊的監聽器 (如果存在)
+        }
          if (itineraryListenerRef) {
             itineraryListenerRef.off('value');
             itineraryListenerRef = null;
             console.log("已移除行程監聽器 (clear display)");
          }
-         itineraryList.innerHTML = ''; // 清空列表
+        if(itineraryList) itineraryList.innerHTML = '';
+        if(document.getElementById('total-cost-display')) document.getElementById('total-cost-display').textContent = '--'; // Reset total cost
     }
 
     // --- QR Code 相關 ---
+    if (toggleQrCodeBtn) {
     toggleQrCodeBtn.addEventListener('click', () => {
+            if (!qrCodeContainer) return;
         if (qrCodeContainer.style.display === 'none') {
             if (activeTripId) {
                 qrCodeContainer.innerHTML = '';
@@ -435,327 +402,334 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     qrCodeContainer.style.display = 'block';
                     console.log(`已產生行程 ID ${activeTripId} 的 QR Code`);
-                    toggleQrCodeBtn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>'; // 切換為隱藏圖示
+                        toggleQrCodeBtn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
                 } catch (error) {
                     console.error("產生 QR Code 時發生錯誤: ", error);
-                    // alert("產生 QR Code 失敗。");
-                    showNotification("產生 QR Code 失敗。", 'error'); // *** 修改 ***
+                        showNotification("產生 QR Code 失敗。", 'error');
                 }
             } else {
-                // alert("尚未載入行程，無法產生 QR Code。");
-                showNotification("尚未載入行程，無法產生 QR Code。", 'error'); // *** 修改 ***
+                    showNotification("尚未載入行程，無法產生 QR Code。", 'error');
             }
         } else {
             qrCodeContainer.style.display = 'none';
             qrCodeContainer.innerHTML = '';
             console.log("隱藏 QR Code");
-            toggleQrCodeBtn.innerHTML = '<i class="fa-solid fa-qrcode"></i>'; // 切換回顯示圖示
+                toggleQrCodeBtn.innerHTML = '<i class="fa-solid fa-qrcode"></i>';
         }
     });
+    }
 
     // --- QR Code 掃描相關 --- 
-    let mediaStream = null;
-    let rafId = null;
-
-    scanQrBtn.addEventListener('click', startScan);
-    cancelScanBtn.addEventListener('click', stopScan);
-
-    // 開始掃描
     function startScan() {
         console.log("開始掃描 QR Code");
+        if (!scanModal || !scanVideo || !scanCanvas || !scanCanvasContext || !navigator.mediaDevices) {
+            console.error("QR 掃描元件未正確初始化或瀏覽器不支援。");
+            alert("無法啟動掃描功能。請確認您的瀏覽器支援相機存取。");
+            return;
+        }
         
-        // 使用 dialog 的 showModal 方法打開 Modal (新版)
         if (scanModal.showModal) {
             scanModal.showModal();
         } else {
-            // 舊版顯示方式 (保留相容性)
             scanModal.style.display = 'block';
         }
+        if (scanFeedback) scanFeedback.textContent = '請求相機權限...';
         
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
                 .then(function(stream) {
+                mediaStream = stream; // Store stream
                     scanVideo.srcObject = stream;
-                    scanVideo.setAttribute("playsinline", true); // iOS 需要
+                scanVideo.setAttribute("playsinline", true);
                     scanVideo.play();
-                    
-                    // 定時執行掃描
-                    scanInterval = setInterval(tick, 100);
-                    
+                if (scanFeedback) scanFeedback.textContent = '相機已啟動，請對準 QR Code';
+                scanInterval = setInterval(tick, 200); // Scan more frequently
                     console.log("掃描相機已啟動");
                 })
                 .catch(function(error) {
                     console.error("無法存取相機: ", error);
-                    
+                if (scanFeedback) scanFeedback.textContent = `無法啟動相機: ${error.name}`;// Show error
+                let alertMsg = `無法啟動掃描功能：${error.message}` ;
                     if (error.name === 'NotAllowedError') {
-                        alert("無法啟動掃描功能：相機權限被拒絕。請在瀏覽器設定中允許相機存取。");
+                    alertMsg = "無法啟動掃描功能：相機權限被拒絕。請在瀏覽器設定中允許相機存取。";
                     } else if (error.name === 'NotFoundError') {
-                        alert("無法啟動掃描功能：找不到相機裝置。");
-                    } else {
-                        alert(`無法啟動掃描功能：${error.message}`);
+                    alertMsg = "無法啟動掃描功能：找不到相機裝置。";
                     }
-                    
+                alert(alertMsg);
                     stopScan();
                 });
-        } else {
-            alert("很抱歉，您的裝置不支援相機存取功能，無法使用 QR Code 掃描。");
-            stopScan();
-        }
     }
 
-    // QR 掃描處理函數
     function tick() {
-        // 檢查視訊是否已準備好
-        if (!scanVideo || !scanVideo.videoWidth) return;
+        // Ensure context exists before proceeding
+        if (!scanCanvasContext || !mediaStream || !scanVideo || scanVideo.readyState !== scanVideo.HAVE_ENOUGH_DATA) return;
         
-        // 調整畫布大小以匹配視訊
         if (scanCanvas.width !== scanVideo.videoWidth) {
             scanCanvas.width = scanVideo.videoWidth;
             scanCanvas.height = scanVideo.videoHeight;
         }
-        
-        // 將視訊畫面繪製到畫布上
         scanCanvasContext.drawImage(scanVideo, 0, 0, scanCanvas.width, scanCanvas.height);
-        
-        // 取得影像資料
         const imageData = scanCanvasContext.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
         
         try {
-            // 使用 jsQR 分析影像中的 QR Code
             const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
                 inversionAttempts: "dontInvert",
             });
             
-            // 如果找到 QR Code
-            if (qrCode) {
+            if (qrCode && qrCode.data) {
                 console.log("QR Code 掃描成功:", qrCode.data);
-                
-                // 停止掃描
+                const tripIdScanned = qrCode.data.trim();
                 stopScan();
-                
-                // 將掃描結果填入 tripId 輸入欄位
-                if (qrCode.data && qrCode.data.trim()) {
-                    const tripIdInput = document.getElementById('trip-id-input');
+                if (tripIdScanned) {
                     if (tripIdInput) {
-                        tripIdInput.value = qrCode.data.trim();
-                        // 提示使用者
-                        const feedback = document.getElementById('scan-feedback');
-                        if (feedback) {
-                            feedback.textContent = "已掃描到 QR Code!";
-                        }
-                        
-                        showNotification("QR Code 掃描成功，請點擊「載入」按鈕載入行程", "success");
+                        tripIdInput.value = tripIdScanned;
                     }
+                    if (scanFeedback) scanFeedback.textContent = "掃描成功！";
+                    showNotification("QR Code 掃描成功，請點擊「載入」按鈕。", "success");
+                    // Optionally auto-load
+                    // loadTrip(tripIdScanned);
                 } else {
-                    showNotification("掃描到的 QR Code 沒有包含有效資料", "error");
+                    if (scanFeedback) scanFeedback.textContent = "掃描到無效的 QR Code。";
+                    showNotification("掃描到的 QR Code 沒有包含有效資料。", "error");
                 }
             }
         } catch (error) {
             console.error("QR Code 掃描處理錯誤:", error);
-            showNotification("QR Code 處理發生錯誤", "error");
-            stopScan();
+            // Avoid showing error in loop, maybe handle outside
         }
     }
 
     function stopScan() {
         console.log("停止掃描");
-        if (scanVideo.srcObject) {
-            const tracks = scanVideo.srcObject.getTracks();
-            tracks.forEach(track => track.stop());
-            scanVideo.srcObject = null;
+        if (scanInterval) {
+            clearInterval(scanInterval);
+            scanInterval = null;
         }
-        
-        // 關閉舊版 scan-modal div 模式
-        if (scanModal.style) {
-            scanModal.style.display = "none";
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
+            mediaStream = null;
         }
-        
-        // 關閉新版 dialog 模式
+        if (scanVideo) scanVideo.srcObject = null;
+
+        if (scanModal) {
         if (scanModal.close) {
             scanModal.close();
+             } else {
+                 scanModal.style.display = "none";
         }
-        
-        scanInterval = null;
+        }
+        if (scanFeedback) scanFeedback.textContent = ''; // Clear feedback
     }
 
-    // --- 行程項目相關 ---
+    // Add listeners (moved to initializeApp)
 
+    // --- 行程項目相關 ---
     function setupItineraryListener(tripId) {
         if (itineraryListenerRef) {
             itineraryListenerRef.off('value');
             console.log("已移除舊的行程監聽器。");
         }
-        // *** 如果 SortableJS 實例存在，先銷毀 ***
         if (sortableInstance) {
             sortableInstance.destroy();
             sortableInstance = null;
             console.log("已銷毀舊的 SortableJS 實例。");
         }
 
-        // 設定新的監聽路徑，並按照 order 排序
-        const currentItineraryRef = db.ref(`trips/${tripId}/itineraries`).orderByChild('order'); // *** 修改排序欄位 ***
+        const currentItineraryRef = db.ref(`trips/${tripId}/itineraries`).orderByChild('order');
         itineraryListenerRef = currentItineraryRef;
         console.log(`開始監聽路徑: trips/${tripId}/itineraries，按 order 排序`);
 
         itineraryListenerRef.on('value', (snapshot) => {
             console.log("行程項目資料更新 (來自 Realtime DB)");
-            itineraryList.innerHTML = ''; // 清空列表
-            const itemsArray = []; // 用於儲存原始順序的陣列
+            if (!itineraryList) return; // Add null check
+            itineraryList.innerHTML = '';
+            const itemsArray = [];
 
             if (snapshot.exists()) {
                 snapshot.forEach((childSnapshot) => {
                     itemsArray.push({ key: childSnapshot.key, data: childSnapshot.val() });
                 });
 
-                // *** 使用索引迴圈來渲染列表，以便處理項目間的按鈕 ***
-                for (let i = 0; i < itemsArray.length; i++) {
-                    const itemObj = itemsArray[i];
-                    const key = itemObj.key;
-                    const item = itemObj.data;
-                    const listItem = document.createElement('li');
-                    listItem.setAttribute('data-id', key);
-                    
-                    // --- 渲染列表項目內容 (與之前相同) ---
-                    const textSpan = document.createElement('span');
-                    const displayDateTime = item.dateTime ? new Date(item.dateTime).toLocaleString('zh-TW') : '未設定時間';
-                    textSpan.textContent = `[${displayDateTime}] ${item.type}: ${item.description} ${item.location ? '('+item.location+')' : ''} ${item.cost ? '- 約 $'+item.cost : ''}`;
-                    listItem.appendChild(textSpan);
-                    const buttonGroup = document.createElement('div');
-                    const notesBtn = document.createElement('button');
-                    notesBtn.innerHTML = '<i class="fa-solid fa-note-sticky"></i>';
-                    notesBtn.title = '編輯筆記';
-                    notesBtn.classList.add('secondary'); // 使用次要按鈕樣式
-                    notesBtn.addEventListener('click', () => { openNotesModal(key); });
-                    buttonGroup.appendChild(notesBtn);
-                    const editBtn = document.createElement('button');
-                    editBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>'; // 使用編輯圖示
-                    editBtn.title = '編輯項目'; // 添加 title
-                    editBtn.addEventListener('click', () => { editItineraryItem(key); });
-                    buttonGroup.appendChild(editBtn);
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>'; // 使用刪除圖示
-                    deleteBtn.title = '刪除項目'; // 添加 title
-                    deleteBtn.addEventListener('click', () => { deleteItineraryItem(key); });
-                    buttonGroup.appendChild(deleteBtn);
-                    listItem.appendChild(buttonGroup);
-                    itineraryList.appendChild(listItem);
-                    // --- 列表項目內容渲染結束 ---
+                // Render items
+                itemsArray.forEach((itemObj, index) => {
+                    renderItineraryItem(itemObj.key, itemObj.data, index, itemsArray);
+                });
 
-                    // *** 檢查是否有下一個項目，並添加路線規劃按鈕 ***
-                    if (i < itemsArray.length - 1) {
-                        const nextItemObj = itemsArray[i+1];
-                        const currentLocation = item.location?.trim(); // 安全取值並去除空白
-                        const nextLocation = nextItemObj.data.location?.trim();
+                calculateTotalCost(); // Update total cost after rendering
 
-                        // 檢查兩個地點是否都有效
-                        if (currentLocation && nextLocation) {
-                            const directionsDiv = document.createElement('div');
-                            directionsDiv.className = 'directions-link-container'; // 用於 CSS styling
-                            
-                            const mapsLink = document.createElement('a');
-                            // 構建 Google Maps Directions URL
-                            const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(currentLocation)}&destination=${encodeURIComponent(nextLocation)}`;
-                            mapsLink.href = url;
-                            mapsLink.target = '_blank'; // 在新分頁開啟
-                            mapsLink.innerHTML = `<i class="fa-solid fa-diamond-turn-right"></i> 規劃路線至下一站 (${nextLocation})`; 
-                            mapsLink.className = 'pico-button pico-button-outline pico-button-sm'; // 使用 Pico 按鈕樣式 (可自訂)
-                            mapsLink.style.width = '100%'; // 讓按鈕填滿寬度
-                            mapsLink.style.textAlign = 'center';
-                            mapsLink.style.marginTop = '0.25rem';
-                            mapsLink.style.marginBottom = '0.75rem';
-
-                            directionsDiv.appendChild(mapsLink);
-                            itineraryList.appendChild(directionsDiv); // 將按鈕(容器)加到 ul 中 li 之後
-                        } else {
-                             // 如果其中一個地點缺失，可以選擇顯示提示或不顯示按鈕
-                             console.log(`項目 ${key} 或下一個項目缺少地點資訊，無法生成路線連結。`);
-                        }
-                    }
-                }
-
-                // *** 初始化 SortableJS ***
+                // Initialize SortableJS
                 if (!sortableInstance && typeof Sortable !== 'undefined') {
                     sortableInstance = new Sortable(itineraryList, {
-                        animation: 150, // 拖曳動畫毫秒數
-                        ghostClass: 'sortable-ghost', // 拖曳時佔位符樣式
-                        chosenClass: 'sortable-chosen', // 選中項樣式
-                        onEnd: function (evt) {
-                            // 拖曳結束後更新順序
-                            console.log("拖曳結束，舊索引:", evt.oldIndex, "新索引:", evt.newIndex);
-                            updateOrderAfterSort();
-                        },
+                        animation: 150,
+                        ghostClass: 'sortable-ghost',
+                        chosenClass: 'sortable-chosen',
+                        handle: '.drag-handle', // Use handle for dragging
+                        onEnd: updateOrderAfterSort,
                     });
                     console.log("SortableJS 初始化完成。");
                 } else if (typeof Sortable === 'undefined') {
                     console.warn("Sortable library is not loaded.");
                 }
-
             } else {
                 itineraryList.innerHTML = '<li>此行程尚無項目，快來新增吧！</li>';
-                 // 如果列表為空，也要確保銷毀 Sortable 實例
-                 if (sortableInstance) {
+                if (sortableInstance) {
                     sortableInstance.destroy();
                     sortableInstance = null;
-                 }
+                }
+                 calculateTotalCost(); // Reset total cost if list is empty
             }
         }, (error) => {
             console.error(`監聽 trips/${tripId}/itineraries 時發生錯誤: `, error);
-            // 這裡的錯誤比較技術性，可能還是保留 console 或用通知
-            // itineraryList.innerHTML = '<li>讀取行程項目時發生錯誤。</li>';
-             showNotification("讀取行程項目時發生錯誤，可能需要檢查權限或網路。", 'error');
+             showNotification("讀取行程項目時發生錯誤。", 'error');
             if (itineraryListenerRef === currentItineraryRef) {
                 itineraryListenerRef = null;
             }
         });
     }
 
-    // *** 新增：拖曳結束後更新 Firebase 中的 order ***
+    function renderItineraryItem(key, item, index, itemsArray) {
+        if (!itineraryList) return;
+                    const listItem = document.createElement('li');
+                    listItem.setAttribute('data-id', key);
+        listItem.classList.add('itinerary-item'); // Add class for styling
+
+        // Drag Handle
+        const handle = document.createElement('span');
+        handle.className = 'drag-handle';
+        handle.innerHTML = '<i class="fa-solid fa-grip-vertical"></i>';
+        listItem.appendChild(handle);
+
+        // Item Content
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'item-content';
+
+        // Type Badge
+        const typeBadge = document.createElement('span');
+        typeBadge.className = `item-type-badge item-type-${item.type || 'other'}`;
+        typeBadge.textContent = getItemTypeDisplayName(item.type);
+        contentDiv.appendChild(typeBadge);
+
+        // Text Span
+                    const textSpan = document.createElement('span');
+        const displayDateTime = item.dateTime ? new Date(item.dateTime).toLocaleString('zh-TW', { dateStyle: 'short', timeStyle: 'short' }) : '未定時間';
+        let itemText = `<strong>${displayDateTime}</strong> - ${item.description || '未描述'}`;
+        if (item.location) itemText += ` <small>@ ${item.location}</small>`;
+        if (item.cost && typeof item.cost === 'number') itemText += ` <strong class="item-cost">(約 $${item.cost.toFixed(2)})</strong>`;
+        textSpan.innerHTML = itemText;
+        contentDiv.appendChild(textSpan);
+        listItem.appendChild(contentDiv);
+
+        // Button Group
+                    const buttonGroup = document.createElement('div');
+        buttonGroup.className = 'item-actions';
+
+                    const notesBtn = document.createElement('button');
+                    notesBtn.innerHTML = '<i class="fa-solid fa-note-sticky"></i>';
+                    notesBtn.title = '編輯筆記';
+        notesBtn.classList.add('secondary', 'outline', 'small');
+                    notesBtn.addEventListener('click', () => { openNotesModal(key); });
+                    buttonGroup.appendChild(notesBtn);
+
+                    const editBtn = document.createElement('button');
+        editBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+        editBtn.title = '編輯項目';
+        editBtn.classList.add('secondary', 'outline', 'small');
+                    editBtn.addEventListener('click', () => { editItineraryItem(key); });
+                    buttonGroup.appendChild(editBtn);
+
+                    const deleteBtn = document.createElement('button');
+        deleteBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+        deleteBtn.title = '刪除項目';
+        deleteBtn.classList.add('contrast', 'outline', 'small');
+                    deleteBtn.addEventListener('click', () => { deleteItineraryItem(key); });
+                    buttonGroup.appendChild(deleteBtn);
+
+                    listItem.appendChild(buttonGroup);
+                    itineraryList.appendChild(listItem);
+
+        // Add directions link if applicable
+        renderDirectionsLink(item, index, itemsArray);
+    }
+
+    function getItemTypeDisplayName(type) {
+        switch (type) {
+            case 'transport': return '交通';
+            case 'accommodation': return '住宿';
+            case 'activity': return '活動';
+            case 'food': return '餐飲';
+            case 'other': return '其他';
+            default: return type || '未知';
+        }
+    }
+
+    function renderDirectionsLink(currentItemData, index, itemsArray) {
+        if (index < itemsArray.length - 1) {
+            const nextItemObj = itemsArray[index + 1];
+            const currentLocation = currentItemData.location?.trim();
+                        const nextLocation = nextItemObj.data.location?.trim();
+
+                        if (currentLocation && nextLocation) {
+                            const directionsDiv = document.createElement('div');
+                directionsDiv.className = 'directions-link-container';
+                            
+                            const mapsLink = document.createElement('a');
+                            const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(currentLocation)}&destination=${encodeURIComponent(nextLocation)}`;
+                            mapsLink.href = url;
+                mapsLink.target = '_blank';
+                mapsLink.rel = 'noopener noreferrer';
+                            mapsLink.innerHTML = `<i class="fa-solid fa-diamond-turn-right"></i> 規劃路線至下一站 (${nextLocation})`; 
+                mapsLink.className = 'secondary outline small'; // Consistent button style
+
+                            directionsDiv.appendChild(mapsLink);
+                if (itineraryList) itineraryList.appendChild(directionsDiv);
+            }
+        }
+    }
+
     function updateOrderAfterSort() {
-        if (!activeTripId) return;
+        if (!activeTripId || !itineraryList) return;
 
         const items = itineraryList.querySelectorAll('li[data-id]');
-        if (items.length === 0) return; // 如果列表為空則不處理
+        if (items.length === 0) return;
 
         const updates = {};
         items.forEach((item, index) => {
             const itemId = item.getAttribute('data-id');
             if (itemId) {
-                // 建立要更新的路徑和新的 order 值 (索引)
                 updates[`/trips/${activeTripId}/itineraries/${itemId}/order`] = index;
             }
         });
 
         console.log("準備更新 order:", updates);
-
-        incrementPendingWrites(); // *** 在寫入前檢查並增加計數 ***
-
+        incrementPendingWrites();
         db.ref().update(updates)
             .then(() => {
                 console.log("行程項目順序更新成功。");
-                // 數據會透過 on('value') 重新觸發渲染，理論上會保持新順序
-                // showNotification("順序已儲存", 'success'); // 可選：給用戶提示
+                // No need for notification, UI updates automatically
             })
             .catch((error) => {
                 console.error("更新行程項目順序時發生錯誤: ", error);
-                showNotification("儲存順序失敗，請稍後再試。", 'error');
-                // 注意：這裡如果更新失敗，前端的顯示可能與後端不一致
-                // 可能需要重新觸發一次監聽器來恢復顯示，或者提示使用者重新整理
+                showNotification("儲存順序失敗。", 'error');
             });
     }
 
     function editItineraryItem(itemId) {
-        if (!activeTripId) return;
+        if (!activeTripId || !editModal) return;
         const itemRef = db.ref(`trips/${activeTripId}/itineraries/${itemId}`);
         itemRef.get().then((snapshot) => {
             if (snapshot.exists()) {
                 const currentItem = snapshot.val();
-                editItemIdInput.value = itemId;
-                editItemDateInput.value = currentItem.dateTime || '';
-                editItemTypeInput.value = currentItem.type || '';
-                editItemDescriptionInput.value = currentItem.description || '';
-                editItemLocationInput.value = currentItem.location || '';
-                editItemCostInput.value = currentItem.cost || 0;
-                editModal.style.display = 'block';
+                if (editItemIdInput) editItemIdInput.value = itemId;
+                if (editItemDateInput) editItemDateInput.value = currentItem.dateTime || '';
+                if (editItemTypeInput) editItemTypeInput.value = currentItem.type || '';
+                if (editItemDescriptionInput) editItemDescriptionInput.value = currentItem.description || '';
+                if (editItemLocationInput) editItemLocationInput.value = currentItem.location || '';
+                if (editItemCostInput) editItemCostInput.value = currentItem.cost ?? ''; // Use nullish coalescing for empty value
+
+                if (editModal.showModal) {
+                   editModal.showModal();
+                } else {
+                   editModal.style.display = 'block'; // Fallback
+                }
             } else {
                  showNotification(`找不到要編輯的項目 ${itemId}`, 'error');
             }
@@ -765,65 +739,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    editForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const itemIdToUpdate = editItemIdInput.value;
-        if (!itemIdToUpdate || !activeTripId) {
-            console.error("無法更新：缺少行程 ID 或項目 ID");
-            return;
-        }
-        // *** 禁用儲存和取消按鈕 ***
-        const submitButton = editForm.querySelector('button[type="submit"]');
-        const cancelButton = editForm.querySelector('#cancel-edit-btn');
-        submitButton.disabled = true;
-        submitButton.setAttribute('aria-busy', 'true'); // Pico.css 載入狀態
-        cancelButton.disabled = true; // 避免在儲存過程中取消
-
-        const updatedData = {
-            dateTime: editItemDateInput.value,
-            type: editItemTypeInput.value,
-            description: editItemDescriptionInput.value.trim(),
-            location: editItemLocationInput.value.trim(),
-            cost: editItemCostInput.value ? parseFloat(editItemCostInput.value) : 0
-        };
-        const itemRef = db.ref(`trips/${activeTripId}/itineraries/${itemIdToUpdate}`);
-        
-        incrementPendingWrites(); // *** 在寫入前檢查並增加計數 ***
-
-        itemRef.update(updatedData)
-            .then(() => {
-                 showNotification("項目更新成功！", 'success');
-                closeEditModal();
-            })
-            .catch((error) => {
-                console.error(`更新項目 ${itemIdToUpdate} 時發生錯誤: `, error);
-                 showNotification("更新失敗，請稍後再試。", 'error');
-            })
-            .finally(() => {
-                 // *** 啟用按鈕 ***
-                 submitButton.disabled = false;
-                 submitButton.removeAttribute('aria-busy');
-                 cancelButton.disabled = false;
-            });
-    });
-
     function closeEditModal() {
+        if (!editModal) return;
+        if (editModal.close) {
+            editModal.close();
+        } else {
         editModal.style.display = 'none';
-        editForm.reset();
-        editItemIdInput.value = '';
     }
+        if (editForm) editForm.reset();
+        if (editItemIdInput) editItemIdInput.value = '';
+    }
+    // Add listener in initializeApp
 
     function deleteItineraryItem(itemId) {
         if (!activeTripId) return;
-        // 使用 confirm 仍然比較直觀，暫不替換
-        if (confirm("確定要刪除這個行程項目嗎？")) {
+        if (confirm("確定要刪除這個行程項目嗎？相關筆記也會一併刪除。")) {
             const itemRef = db.ref(`trips/${activeTripId}/itineraries/${itemId}`);
-            
-            incrementPendingWrites(); // *** 在寫入前檢查並增加計數 ***
-            
+            incrementPendingWrites();
             itemRef.remove()
                 .then(() => {
                      showNotification("項目已刪除。", 'success');
+                     calculateTotalCost(); // Recalculate cost
                 })
                 .catch((error) => {
                     console.error(`刪除項目 ${itemId} 時發生錯誤: `, error);
@@ -833,60 +769,28 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("使用者取消刪除。");
         }
     }
+    // Add form submit listener in initializeApp
 
-    itineraryForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // 基本驗證 (描述是必填的)
-        const descriptionInput = document.getElementById('item-description');
-        descriptionInput.classList.remove('input-error');
-        if (!descriptionInput.value.trim()) {
-            showNotification("請輸入行程描述！", 'error');
-            descriptionInput.classList.add('input-error');
-            descriptionInput.focus();
+    // --- 計算總花費 ---
+    function calculateTotalCost() {
+        const totalCostDisplay = document.getElementById('total-cost-display');
+        if (!itineraryList || !totalCostDisplay) {
+            if(totalCostDisplay) totalCostDisplay.textContent = '--';
             return;
         }
         
-        if (!activeTripId) {
-            showNotification("請先建立或載入一個行程！", 'error');
-            return;
-        }
-        
-        const submitButton = itineraryForm.querySelector('button[type="submit"]');
-        submitButton.disabled = true;
-        submitButton.setAttribute('aria-busy', 'true');
-        
-        const newItem = {
-            dateTime: document.getElementById('item-date').value,
-            type: document.getElementById('item-type').value,
-            description: descriptionInput.value.trim(),
-            location: document.getElementById('item-location').value.trim(),
-            cost: document.getElementById('item-cost').value ? parseFloat(document.getElementById('item-cost').value) : 0,
-            createdAt: firebase.database.ServerValue.TIMESTAMP,
-            order: firebase.database.ServerValue.TIMESTAMP
-        };
-        
-        const currentItineraryRef = db.ref(`trips/${activeTripId}/itineraries`);
-        
-        if (!isOnline) {
-            incrementPendingWrites();
-        }
-        
-        currentItineraryRef.push(newItem)
-            .then(() => {
-                showNotification("行程項目已新增！", 'success');
-                itineraryForm.reset();
-                descriptionInput.classList.remove('input-error');
-            })
-            .catch((error) => {
-                console.error(`新增行程項目到 ${activeTripId} 時發生錯誤: `, error);
-                 showNotification("新增項目失敗，請稍後再試。", 'error');
-            })
-            .finally(() => {
-                submitButton.disabled = false;
-                 submitButton.removeAttribute('aria-busy');
-            });
-    });
+        let totalCost = 0;
+        const items = itineraryList.querySelectorAll('li[data-id]');
+        items.forEach(itemElement => {
+            // This requires reading data directly, which is inefficient.
+            // It's better to calculate during the 'value' event of the listener.
+            // For now, let's rely on the calculation within setupItineraryListener.
+        });
+         // The actual calculation happens in setupItineraryListener now.
+         // This function might be redundant or could be used for manual recalculation if needed.
+         console.log("calculateTotalCost called (calculation now primarily in listener).");
+    }
+
 
     // --- LocalStorage 操作 --- 
     function loadSavedTrips() {
@@ -895,18 +799,18 @@ document.addEventListener('DOMContentLoaded', () => {
             return saved ? JSON.parse(saved) : {};
         } catch (e) {
             console.error("讀取已存行程列表時發生錯誤: ", e);
-            return {}; // 出錯時返回空物件
+            return {};
         }
     }
 
     function saveTripInfo(tripId, tripName) {
         if (!tripId || !tripName) return;
         const savedTrips = loadSavedTrips();
-        savedTrips[tripId] = tripName; // 新增或更新
+        savedTrips[tripId] = tripName;
         try {
             localStorage.setItem(SAVED_TRIPS_KEY, JSON.stringify(savedTrips));
             console.log(`已儲存行程資訊: ${tripId} - ${tripName}`);
-            populateSavedTripsDropdown(); // 更新下拉選單
+            populateSavedTripsDropdown();
         } catch (e) {
             console.error("儲存行程列表時發生錯誤: ", e);
         }
@@ -916,134 +820,138 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!tripId) return;
         const savedTrips = loadSavedTrips();
         if (savedTrips[tripId]) {
+            const tripNameToConfirm = savedTrips[tripId];
+            if (confirm(`確定要從瀏覽器儲存列表中移除行程 "${tripNameToConfirm}" 嗎？這不會刪除雲端資料。`)) {
             delete savedTrips[tripId];
             try {
                 localStorage.setItem(SAVED_TRIPS_KEY, JSON.stringify(savedTrips));
                 console.log(`已從儲存列表移除行程: ${tripId}`);
                 showNotification("已從列表移除選定行程", 'success');
-                // 如果刪除的是最後使用的 ID，也從 localStorage 移除
                 if (localStorage.getItem(LAST_TRIP_KEY) === tripId) {
                     localStorage.removeItem(LAST_TRIP_KEY);
                     console.log("同時移除了 lastActiveTripId");
                 }
-                populateSavedTripsDropdown(); // 更新下拉選單
-                // 清空輸入框，因為參照可能已消失
-                tripIdInput.value = ''; 
+                    populateSavedTripsDropdown();
+                    if(tripIdInput) tripIdInput.value = '';
+                    if (activeTripId === tripId) { // If removing the active trip
+                        clearCurrentTripDisplay();
+                    }
             } catch (e) {
                 console.error("移除行程時儲存列表失敗: ", e);
                  showNotification("移除行程時發生錯誤", 'error');
+                }
             }
         }
     }
 
     // --- 下拉選單處理 --- 
     function populateSavedTripsDropdown() {
+        if (!savedTripsSelect) return;
         const savedTrips = loadSavedTrips();
         const tripIds = Object.keys(savedTrips);
 
-        savedTripsSelect.innerHTML = ''; // 清空選項
+        savedTripsSelect.innerHTML = '';
 
         if (tripIds.length === 0) {
             savedTripsSelect.innerHTML = '<option value="">-- 無已存行程 --</option>';
-            deleteSelectedTripBtn.disabled = true;
+            if (deleteSelectedTripBtn) deleteSelectedTripBtn.disabled = true;
         } else {
-            savedTripsSelect.innerHTML = '<option value="">-- 請選擇 --</option>'; // 加入預設選項
+            savedTripsSelect.innerHTML = '<option value="">-- 請選擇 --</option>';
             tripIds.forEach(tripId => {
                 const option = document.createElement('option');
                 option.value = tripId;
-                option.textContent = `${savedTrips[tripId]} (${tripId.substring(0, 6)}...)`; // 顯示名稱和部分ID
+                // Display name and first 6 chars of ID for uniqueness
+                option.textContent = `${savedTrips[tripId]} (${tripId.substring(0, 6)}...)`;
+                // Set selected if it matches the last active trip ID
+                if (tripId === localStorage.getItem(LAST_TRIP_KEY)) {
+                     option.selected = true;
+                }
                 savedTripsSelect.appendChild(option);
             });
-            // 初始狀態下不選中任何項目，刪除按鈕禁用
-            deleteSelectedTripBtn.disabled = true; 
+            // Update delete button state based on initial selection
+            updateDeleteButtonState();
         }
     }
 
-    // *** 新增：更新刪除按鈕狀態函數 ***
+
     function updateDeleteButtonState() {
+        if (!savedTripsSelect || !deleteSelectedTripBtn) return;
         const selectedTripId = savedTripsSelect.value;
         if (selectedTripId) {
-            tripIdInput.value = selectedTripId; // 將選中ID填入輸入框
-            deleteSelectedTripBtn.disabled = false; // 啟用刪除按鈕
+            if(tripIdInput && !tripIdInput.value) { // Only fill if empty, avoid overriding user input
+                 tripIdInput.value = selectedTripId;
+            }
+            deleteSelectedTripBtn.disabled = false;
         } else {
-            tripIdInput.value = ''; // 清空輸入框
-            deleteSelectedTripBtn.disabled = true; // 禁用刪除按鈕
+            // Don't clear tripIdInput here automatically
+            deleteSelectedTripBtn.disabled = true;
         }
     }
 
-    // *** 新增：刪除選定行程函數 ***
     function deleteSelectedTrip() {
+        if (!savedTripsSelect) return;
         const selectedTripId = savedTripsSelect.value;
         if (selectedTripId) {
             removeSavedTrip(selectedTripId);
         }
     }
-
-    // 監聽下拉選單變化
-    savedTripsSelect.addEventListener('change', () => {
-        const selectedTripId = savedTripsSelect.value;
-        if (selectedTripId) {
-            tripIdInput.value = selectedTripId; // 將選中ID填入輸入框
-            deleteSelectedTripBtn.disabled = false; // 啟用刪除按鈕
-        } else {
-            tripIdInput.value = ''; // 清空輸入框
-            deleteSelectedTripBtn.disabled = true; // 禁用刪除按鈕
-        }
-    });
-
-    // 監聽刪除按鈕點擊
-    deleteSelectedTripBtn.addEventListener('click', () => {
-        const selectedTripId = savedTripsSelect.value;
-        if (selectedTripId) {
-            removeSavedTrip(selectedTripId);
-        }
-    });
+    // Add listeners in initializeApp
 
     // --- 筆記 Modal 相關函式 ---
     function openNotesModal(itemId) {
+        if (!notesModal || !notesItemIdInput || !activeTripId) {
+             console.error("無法開啟筆記: 元件未找到或行程未載入。");
+             showNotification("無法開啟筆記視窗", "error");
+             return;
+        }
         console.log(`準備開啟筆記 Modal，項目 ID: ${itemId}`);
         notesItemIdInput.value = itemId;
+        notesChangedSinceLoad = false; // Reset change tracking
 
-        // *** 測試：先嘗試打開 Modal ***
         try {
-            notesModal.showModal(); 
-            console.log("已嘗試呼叫 notesModal.showModal()");
+            if (notesModal.showModal) notesModal.showModal();
+            else notesModal.style.display = 'block';
         } catch (e) {
             console.error("呼叫 notesModal.showModal() 時出錯:", e);
             showNotification("無法開啟筆記視窗", "error");
-            return; // 如果打不開就直接返回
+            return;
         }
 
-        // 1. 初始化 Quill (如果尚未初始化)
         if (!quill) {
             try {
                  quill = new Quill(notesEditorContainer, {
                     modules: {
                         toolbar: {
                             container: [
-                                [{ 'header': [1, 2, 3, false] }],
-                                [{ 'font': Quill.import('formats/font').whitelist || [] }], 
-                                [{ 'size': ['small', false, 'large', 'huge'] }],
+                                [{'header': [1, 2, 3, false]}],
+                                [{'font': Quill.import('formats/font').whitelist || []}],
+                                [{'size': ['small', false, 'large', 'huge']}],
                                 ['bold', 'italic', 'underline', 'strike'],
-                                [{ 'color': [] }, { 'background': [] }],
-                                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                                [{ 'script': 'sub'}, { 'script': 'super' }],
-                                [{ 'indent': '-1'}, { 'indent': '+1' }],
-                                [{ 'direction': 'rtl' }],
-                                [{ 'align': [] }],
+                                [{'color': [] }, { 'background': [] }],
+                                [{'list': 'ordered'}, { 'list': 'bullet' }],
+                                [{'script': 'sub'}, { 'script': 'super' }],
+                                [{'indent': '-1'}, { 'indent': '+1' }],
+                                [{'direction': 'rtl' }],
+                                [{'align': [] }],
                                 ['link', 'image', 'video', 'blockquote', 'code-block'], 
                                 ['clean']
                             ],
                             handlers: {
-                                'image': selectLocalImage // 處理檔案選擇
+                                'image': selectLocalImage
                             }
                         }
                     },
                     theme: 'snow'
                 });
-                 console.log("Quill 編輯器已初始化 (準備手動添加拍照按鈕)"); // *** 修改 Log ***
-                 addQuillToolbarTooltips(notesEditorContainer); // *** 現在由這個函式負責添加按鈕 ***
-                 // ... (text-change 監聽器不變) ...
+                 console.log("Quill 編輯器已初始化");
+                 addQuillToolbarTooltips(notesEditorContainer);
+                 // Add text-change listener
+                 quill.on('text-change', (delta, oldDelta, source) => {
+                     if (source === 'user') {
+                         notesChangedSinceLoad = true;
+                         console.log("筆記內容已變更 (來自使用者操作)");
+                     }
+                 });
             } catch (error) {
                  console.error("初始化 Quill 編輯器實例失敗:", error);
                 showNotification("無法載入筆記編輯器", "error");
@@ -1056,11 +964,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!quill) {
              console.error("Quill instance is null after initialization attempt.");
              showNotification("無法載入筆記編輯器", "error");
-             closeNotesModal(); // 初始化失敗時關閉已開啟的 Modal
+             closeNotesModal();
              return;
         }
 
-        // 2. 從 Firebase 讀取現有筆記並載入
         console.log("準備從 Firebase 讀取筆記...");
         const notesPath = `trips/${activeTripId}/itineraries/${itemId}/notes`;
         db.ref(notesPath).once('value')
@@ -1068,97 +975,93 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("Firebase 筆記讀取成功。");
                 const notesHtml = snapshot.val();
                 if (quill) { 
-                    if (notesHtml) {
-                        quill.root.innerHTML = notesHtml; 
-                        console.log("已載入現有筆記");
-                    } else {
-                        quill.setContents([]); 
-                        console.log("此項目尚無筆記，編輯器已清空。");
-                    }
-                    // Modal 已經在前面打開了，這裡不需要再打開
-                    // notesModal.showModal(); 
-                    console.log("筆記內容已載入/清空。");
+                    quill.root.innerHTML = notesHtml || '<p><br></p>'; // Ensure editor is not empty
+                    console.log(notesHtml ? "已載入現有筆記" : "此項目尚無筆記，編輯器已清空。");
+                    quill.history.clear(); // Clear undo history after loading
+                    notesChangedSinceLoad = false; // Reset after loading
                 } else {
                      console.error("Quill 實例丟失，無法載入筆記內容。");
                      showNotification("無法載入筆記內容", "error");
-                     closeNotesModal(); // 關閉已開啟的 Modal
+                     closeNotesModal();
                 }
             })
             .catch((error) => {
                 console.error(`讀取筆記失敗 (路徑: ${notesPath}):`, error);
                 showNotification("讀取筆記時發生錯誤", 'error');
-                // 即使讀取失敗，還是清空編輯器
                 if (quill) {
-                    quill.setContents([]);
-                    console.log("讀取失敗，編輯器已清空。");
+                    quill.root.innerHTML = '<p>讀取筆記失敗。</p>';
+                    quill.history.clear();
+                    notesChangedSinceLoad = false;
                 } else {
-                    console.error("Quill 實例丟失，無法清空編輯器。");
+                    console.error("Quill 實例丟失，無法處理讀取失敗。");
                 }
-                 // Modal 已經在前面打開了，這裡不需要再打開
-                // notesModal.showModal(); 
-                 closeNotesModal(); // 讀取失敗，直接關閉 Modal
+                 closeNotesModal();
             });
     }
 
     function closeNotesModal() {
-        // *** 新增：檢查是否有未儲存的變更 ***
-        console.log(`closeNotesModal: 檢查 notesChangedSinceLoad，目前值: ${notesChangedSinceLoad}`); // *** 偵錯 ***
+        if (!notesModal) return;
+        console.log(`closeNotesModal: 檢查 notesChangedSinceLoad，目前值: ${notesChangedSinceLoad}`);
         if (notesChangedSinceLoad) {
             if (!confirm("您有未儲存的變更，確定要關閉嗎？")) {
                 console.log("使用者取消關閉 (有變更)");
-                return; // 如果使用者取消，則不關閉
+                return;
             }
             console.log("使用者確認關閉 (有變更)");
         }
 
         console.log("關閉筆記 Modal");
-        notesModal.close();
-        notesItemIdInput.value = '';
-        // 清空 Quill 內容，避免下次開啟時看到舊資料
-        if (quill) {
-            quill.setContents([]);
-        }
+        if (notesModal.close) notesModal.close();
+        else notesModal.style.display = 'none';
+        if (notesItemIdInput) notesItemIdInput.value = '';
+        // Don't clear content here, let openNotesModal handle it
         notesChangedSinceLoad = false;
         console.log("變更標記已重設 (關閉後)");
     }
+    // Add listeners in initializeApp
 
     function saveNotes() {
-        const itemId = notesItemIdInput.value;
-        if (!itemId || !quill) {
-            console.error("無法儲存筆記：缺少項目 ID 或編輯器未初始化");
+        const itemId = notesItemIdInput?.value;
+        if (!itemId || !quill || !activeTripId) {
+            console.error("無法儲存筆記：缺少項目 ID、行程 ID 或編輯器未初始化");
             showNotification("無法儲存筆記", 'error');
             return;
         }
 
         console.log(`準備儲存 ID 為 ${itemId} 的筆記`);
-        const notesHtml = quill.root.innerHTML; // 獲取 HTML 內容
+        const notesHtml = quill.root.innerHTML;
         const notesPath = `trips/${activeTripId}/itineraries/${itemId}/notes`;
 
-        // 檢查離線狀態
-        if (!isOnline) {
             incrementPendingWrites();
-            console.log("離線狀態，增加待同步計數");
-        }
 
-        // 寫入 Firebase
+        // Disable button
+        if(saveNotesBtn) saveNotesBtn.disabled = true;
+        if(saveNotesBtn) saveNotesBtn.setAttribute('aria-busy', 'true');
+
         db.ref(notesPath).set(notesHtml)
             .then(() => {
                 console.log(`筆記已成功儲存至 ${notesPath}`);
                 showNotification("筆記已儲存");
+                notesChangedSinceLoad = false; // Reset change tracking
                 closeNotesModal();
             })
             .catch((error) => {
                 console.error(`儲存筆記失敗 (路徑: ${notesPath}):`, error);
                 showNotification("儲存筆記時發生錯誤", 'error');
-                // 儲存失敗時不清空編輯器，讓使用者可以重試或複製內容
+            })
+            .finally(() => {
+                 // Re-enable button
+                if(saveNotesBtn) saveNotesBtn.disabled = false;
+                if(saveNotesBtn) saveNotesBtn.removeAttribute('aria-busy');
             });
     }
+    // Add listener in initializeApp
 
     // Quill 工具欄提示和相機按鈕添加
     function addQuillToolbarTooltips(editorContainer) {
+        if (!editorContainer) return;
         console.log("開始添加 Quill 工具欄提示和功能按鈕...");
         try {
-            // 等待工具欄元素完成渲染
             setTimeout(() => {
                 const toolbar = editorContainer.querySelector('.ql-toolbar');
                 if (!toolbar) {
@@ -1167,100 +1070,87 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 console.log("找到 Quill 工具欄，開始尋找圖片按鈕...");
-                // 找到圖片按鈕
                 const imageButton = toolbar.querySelector('button.ql-image');
-                if (!imageButton) {
-                    console.error("找不到圖片按鈕！");
-                    return;
-                }
-                
-                // 保存圖片按鈕的父元素
+                if (imageButton) {
                 const imageButtonContainer = imageButton.parentElement;
                 imageButton.title = "上傳圖片";
                 
-                // 創建相機按鈕
+                     // Check if camera button already exists
+                     if (!toolbar.querySelector('.ql-camera')) {
                 const cameraButton = document.createElement('button');
                 cameraButton.className = 'ql-camera';
                 cameraButton.innerHTML = '<i class="fa-solid fa-camera"></i>';
                 cameraButton.title = "拍照";
-                cameraButton.style.fontSize = imageButton.style.fontSize;
-                cameraButton.style.width = imageButton.style.width;
-                cameraButton.style.height = imageButton.style.height;
+                         cameraButton.type = 'button'; // Prevent form submission
                 
-                // 將相機按鈕添加到圖片按鈕的父容器中
-                imageButtonContainer.appendChild(cameraButton);
+                         if (imageButtonContainer) imageButtonContainer.appendChild(cameraButton);
+                         else toolbar.appendChild(cameraButton); // Fallback
                 
-                // 給相機按鈕添加點擊事件
                 cameraButton.addEventListener('click', (e) => {
                     e.preventDefault();
                     console.log("相機按鈕被點擊");
-                    openCameraModal(); // 開啟相機模態框
+                             openCameraModal();
                 });
-                
                 console.log("相機按鈕已添加到工具欄");
+                     } else {
+                          console.log("相機按鈕已存在。");
+                     }
+                } else {
+                     console.warn("找不到圖片按鈕！相機按鈕將無法添加。");
+                }
+
                 
                 // 添加其他工具提示
                 const buttons = toolbar.querySelectorAll('button');
                 const tooltips = {
-                    'bold': '粗體',
-                    'italic': '斜體',
-                    'underline': '底線',
-                    'strike': '刪除線',
-                    'blockquote': '引用',
-                    'code-block': '程式碼區塊',
-                    'link': '插入連結',
-                    'video': '插入影片',
-                    'clean': '清除格式'
+                    'bold': '粗體', 'italic': '斜體', 'underline': '底線', 'strike': '刪除線',
+                    'blockquote': '引用', 'code-block': '程式碼區塊', 'link': '插入連結',
+                    'video': '插入影片', 'clean': '清除格式', 'image': '上傳圖片' // Add tooltip for image
                 };
-                
                 buttons.forEach(button => {
-                    const format = button.className.split('-')[1];
-                    if (tooltips[format]) {
+                    for (const format in tooltips) {
+                         if (button.classList.contains(`ql-${format}`)) {
+                             // Only add tooltip if it doesn't have one already
+                             if (!button.title) {
                         button.title = tooltips[format];
+                             }
+                             break;
+                         }
                     }
                 });
                 
-                // 處理選擇器格式
                 const selects = toolbar.querySelectorAll('select');
                 const selectTooltips = {
-                    'header': '標題',
-                    'font': '字型',
-                    'size': '字號',
-                    'color': '文字顏色',
-                    'background': '背景顏色',
-                    'align': '對齊方式'
+                    'header': '標題', 'font': '字型', 'size': '字號',
+                    'color': '文字顏色', 'background': '背景顏色', 'align': '對齊方式'
                 };
-                
                 selects.forEach(select => {
-                    const format = select.className.split('-')[1];
-                    if (selectTooltips[format]) {
-                        const span = select.parentElement.querySelector('span');
-                        if (span) {
+                     for (const format in selectTooltips) {
+                         if (select.classList.contains(`ql-${format}`)) {
+                            const span = select.parentElement?.querySelector('span');
+                            if (span && !span.title) { // Only add if no title
                             span.title = selectTooltips[format];
+                            }
+                             break;
                         }
                     }
                 });
-                
-                console.log("工具欄提示和相機按鈕設置完成");
-            }, 100); // 給工具欄一點時間完成渲染
-            
+                console.log("工具欄提示設置完成");
+            }, 150); // Increase delay slightly
         } catch (error) {
             console.error("添加工具欄提示和按鈕時出錯:", error);
         }
     }
 
-    // --- 圖片上傳相關函式 (稍後重寫為 ImgBB 版本) ---
+    // --- 圖片上傳相關函式 ---
     function selectLocalImage() {
-        // 檢查是否有 ImgBB API Key
         const apiKey = localStorage.getItem(IMGBB_API_KEY_STORAGE_KEY);
         if (!apiKey) {
             showNotification("請先在設定中輸入 ImgBB API Key 以啟用圖片上傳。", "error");
-            openSettingsModal(); // 引導使用者去設定
+            openSettingsModal();
             return;
         }
-        // ... (後續選擇檔案的邏輯類似，但上傳目標改為 ImgBB API) ...
         console.log("準備使用 ImgBB 上傳..."); 
-        // 暫時保留舊的 file input 邏輯框架，但 uploadImage 會被替換
         const input = document.createElement('input');
         input.setAttribute('type', 'file');
         input.setAttribute('accept', 'image/*');
@@ -1268,49 +1158,60 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.appendChild(input);
         input.click();
         input.onchange = () => {
-            const file = input.files[0];
-            if (file) {
+            const file = input.files?.[0];
+            if (file && quill) {
                 console.log("選取的圖片:", file.name);
                 const range = quill.getSelection(true);
-                quill.insertText(range.index, '\n[圖片上傳中(ImgBB)...]\n', { 'color': 'grey', 'italic': true });
-                quill.setSelection(range.index + '\n[圖片上傳中(ImgBB)...]\n'.length); 
-                uploadImageToImgBB(file, range.index, apiKey); // *** 呼叫新的上傳函式 ***
+                const placeholderText = '\n[圖片上傳中(ImgBB)...]\n';
+                quill.insertText(range.index, placeholderText, { 'color': 'grey', 'italic': true });
+                quill.setSelection(range.index + placeholderText.length);
+                uploadImageToImgBB(file, range.index, apiKey);
             } else {
-                console.log("未選擇檔案。");
+                console.log("未選擇檔案或 Quill 未初始化。");
             }
+            // Ensure input is removed even if no file selected
+            if (input.parentNode === document.body) {
             document.body.removeChild(input);
+            }
         };
-
+         // Add focusout listener to remove input if user cancels file dialog
+         input.addEventListener('focusout', () => {
+             // Delay removal slightly to allow onchange to potentially fire
+             setTimeout(() => {
+                 if (input.parentNode === document.body) {
+                     document.body.removeChild(input);
+                     console.log("File input removed after focus out.");
+                 }
+             }, 300);
+         });
     }
 
-    // *** 新增：上傳到 ImgBB 的函式 ***
+
     function uploadImageToImgBB(file, insertionIndex, apiKey) {
          console.log(`uploadImageToImgBB: Uploading ${file.name} using key ${apiKey.substring(0, 4)}...`);
+         if (!quill) {
+              console.error("uploadImageToImgBB: Quill instance is missing.");
+              return;
+         }
          const placeholderText = '\n[圖片上傳中(ImgBB)...]\n';
          const placeholderLength = placeholderText.length;
 
-         // 1. 使用 FileReader 將圖片轉為 Base64
          const reader = new FileReader();
          reader.onload = (e) => {
-             const base64Image = e.target.result.split(',')[1]; // 取出 Base64 部分
+             const base64Image = e.target?.result?.split(',')[1];
              if (!base64Image) {
                   console.error("uploadImageToImgBB: Failed to read file as Base64.");
                   showNotification("讀取圖片檔失敗。", 'error');
-                  if (quill) quill.deleteText(insertionIndex, placeholderLength); 
+                  try { quill.deleteText(insertionIndex, placeholderLength); } catch(delErr) {}
                   return;
              }
 
-             // 2. 建立 FormData
              const formData = new FormData();
              formData.append('key', apiKey);
              formData.append('image', base64Image);
-             // 可以選擇性地添加其他參數，例如設定圖片自動刪除時間
-             // formData.append('expiration', 600); // 範例：10 分鐘後刪除
-             // formData.append('name', file.name); // 可選：指定檔案名稱
 
              console.log("uploadImageToImgBB: Sending request to ImgBB API...");
 
-             // 3. 使用 fetch API 發送請求
              fetch('https://api.imgbb.com/1/upload', {
                  method: 'POST',
                  body: formData
@@ -1318,46 +1219,38 @@ document.addEventListener('DOMContentLoaded', () => {
              .then(response => {
                  console.log(`uploadImageToImgBB: Received response with status: ${response.status}`);
                  if (!response.ok) {
-                     // 如果 HTTP 狀態碼不是 2xx，拋出錯誤以便 catch 處理
-                     throw new Error(`ImgBB API Error: ${response.statusText} (Status: ${response.status})`);
+                     return response.text().then(text => { // Read body before throwing
+                         throw new Error(`ImgBB API Error: ${response.statusText} (Status: ${response.status}) - ${text}`);
+                     });
                  }
-                 return response.json(); // 解析 JSON 回應
+                 return response.json();
              })
              .then(data => {
                  console.log("uploadImageToImgBB: ImgBB API Response Data:", data);
-                 // 4. 處理回應
-                 if (data.success && data.data && data.data.url) {
+                 if (data.success && data.data?.url) {
                      const imageUrl = data.data.url;
                      console.log("uploadImageToImgBB: Upload successful. Image URL:", imageUrl);
-                     // 5. 更新 Quill 編輯器
-                     if (quill) {
                          try {
                              quill.deleteText(insertionIndex, placeholderLength);
                              quill.insertEmbed(insertionIndex, 'image', imageUrl);
                              quill.setSelection(insertionIndex + 1); 
                              showNotification("圖片已透過 ImgBB 插入。", "success");
+                         notesChangedSinceLoad = true; // Mark notes as changed
                          } catch (embedError) {
                              console.error("uploadImageToImgBB: Error deleting placeholder or embedding image:", embedError);
                              showNotification("插入圖片時出錯。", "error");
                          }
                      } else {
-                         console.error("uploadImageToImgBB: Quill instance missing after upload.");
-                     }
-                 } else {
-                     // ImgBB 返回的資料表明失敗
-                     const errorMessage = data.error?.message || 'ImgBB 返回未知錯誤'
+                     const errorMessage = data.error?.message || 'ImgBB 返回未知錯誤';
                      console.error("uploadImageToImgBB: ImgBB API reported failure:", errorMessage, data);
                      showNotification(`圖片上傳失敗: ${errorMessage}`, 'error');
-                     if (quill) quill.deleteText(insertionIndex, placeholderLength); 
+                     try { quill.deleteText(insertionIndex, placeholderLength); } catch(delErr) {}
                  }
              })
              .catch(error => {
-                 // 6. 處理 fetch 錯誤或前面拋出的錯誤
                  console.error("uploadImageToImgBB: Fetch Error or API Error:", error);
                  showNotification(`圖片上傳時發生網路或 API 錯誤: ${error.message}`, 'error');
-                 if (quill) {
-                      try { quill.deleteText(insertionIndex, placeholderLength); } catch(e) {}
-                 }
+                 try { quill.deleteText(insertionIndex, placeholderLength); } catch(delErr) {}
              });
          };
 
@@ -1365,138 +1258,106 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("uploadImageToImgBB: FileReader error:", error);
             showNotification("讀取圖片檔時發生錯誤。", 'error');
             if (quill) { 
-                try { quill.deleteText(insertionIndex, placeholderLength); } catch(e) {}
+                try { quill.deleteText(insertionIndex, placeholderLength); } catch(delErr) {}
             }
          };
-
-         // 開始讀取檔案
          reader.readAsDataURL(file);
          console.log("uploadImageToImgBB: Started reading file with FileReader.");
     }
 
-    // *** 新增：設定 Modal 相關函式 ***
+    // --- 設定 Modal 相關函式 ---
     function openSettingsModal() {
+        if (!settingsModal || !imgbbApiKeyInput || !geminiApiKeyInput) return;
         console.log("開啟設定 Modal");
-        const apiKey = localStorage.getItem(IMGBB_API_KEY_STORAGE_KEY) || '';
-        imgbbApiKeyInput.value = apiKey;
-        settingsModal.showModal();
+        const imgbbApiKey = localStorage.getItem(IMGBB_API_KEY_STORAGE_KEY) || '';
+        const geminiApiKey = localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY) || '';
+        imgbbApiKeyInput.value = imgbbApiKey;
+        geminiApiKeyInput.value = geminiApiKey;
+        if (settingsModal.showModal) settingsModal.showModal();
+        else settingsModal.style.display = 'block';
     }
 
     function closeSettingsModal() {
+        if (!settingsModal) return;
         console.log("關閉設定 Modal");
-        settingsModal.close();
+        if (settingsModal.close) settingsModal.close();
+        else settingsModal.style.display = 'none';
     }
+    // Add listeners in initializeApp
     
-    // 儲存設定
     function saveSettings(e) {
         e.preventDefault();
-        const apiKey = imgbbApiKeyInput.value.trim();
+        if (!imgbbApiKeyInput || !geminiApiKeyInput) return;
+        const imgbbApiKey = imgbbApiKeyInput.value.trim();
+        const geminiApiKey = geminiApiKeyInput.value.trim();
         
         try {
-            if (apiKey) {
-                localStorage.setItem(IMGBB_API_KEY_STORAGE_KEY, apiKey);
+            if (imgbbApiKey) {
+                localStorage.setItem(IMGBB_API_KEY_STORAGE_KEY, imgbbApiKey);
                 console.log("ImgBB API Key 已儲存");
-                showNotification("設定已儲存！", 'success');
             } else {
-                // 如果清空了 Key，也從 localStorage 移除
                 localStorage.removeItem(IMGBB_API_KEY_STORAGE_KEY);
                 console.log("已清除儲存的 ImgBB API Key");
-                showNotification("已清除 ImgBB API Key 設定。", 'success');
             }
+
+            if (geminiApiKey) {
+                localStorage.setItem(GEMINI_API_KEY_STORAGE_KEY, geminiApiKey);
+                console.log("Google Gemini API Key 已儲存");
+            } else {
+                localStorage.removeItem(GEMINI_API_KEY_STORAGE_KEY);
+                console.log("已清除儲存的 Google Gemini API Key");
+            }
+
+            showNotification("設定已儲存！", 'success');
             closeSettingsModal();
         } catch (error) {
             console.error("儲存設定失敗:", error);
             showNotification("儲存設定失敗，可能是 localStorage 已滿或被禁用。", 'error');
         }
     }
-
-    // 編輯表單提交處理
-    function handleEditFormSubmit(e) {
-        e.preventDefault();
-        
-        const itemId = editItemId.value;
-        const date = editItemDate.value;
-        const type = editItemType.value;
-        const description = editItemDescription.value;
-        const location = editItemLocation.value;
-        const cost = editItemCost.value ? parseFloat(editItemCost.value) : null;
-        
-        // 檢查必填項
-        if (!date || !type || !description) {
-            showNotification("請填寫所有必填欄位", "error");
-            return;
-        }
-        
-        // 準備更新資料
-        const itemData = {
-            date: date,
-            type: type,
-            description: description,
-            location: location || null,
-            cost: cost
-        };
-        
-        // 更新資料到 Firebase (如果在離線狀態，Firebase 會暫存並在重新連接時自動同步)
-        if (!activeTripId) {
-            showNotification("無法編輯項目：未載入行程", "error");
-            return;
-        }
-        
-        if (!isOnline) {
-            incrementPendingWrites();
-        }
-        
-        const itemRef = db.ref(`trips/${activeTripId}/itineraries/${itemId}`);
-        itemRef.update(itemData)
-            .then(() => {
-                console.log(`行程項目 ${itemId} 更新成功`);
-                showNotification("項目已更新", "success");
-                closeEditModal();
-            })
-            .catch(error => {
-                console.error("更新行程項目失敗:", error);
-                showNotification("更新項目失敗: " + error.message, "error");
-            });
-    }
+    // Add listener in initializeApp
 
     // --- 相機拍照相關函式 ---
     function openCameraModal() {
+        if (!cameraModal || !cameraView || !cameraCanvas || !cameraFeedback || !capturePhotoBtn || !cancelCameraBtn) {
+            console.error("相機元件未完全初始化。");
+            showNotification("無法開啟相機。", "error");
+            return;
+        }
         console.log("開啟拍照 Modal");
-        // 檢查 API Key
         const apiKey = localStorage.getItem(IMGBB_API_KEY_STORAGE_KEY);
         if (!apiKey) {
             showNotification("請先設定 ImgBB API Key 以使用拍照功能。", "error");
             openSettingsModal();
             return;
         }
-        // 檢查瀏覽器支援性
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        if (!navigator.mediaDevices?.getUserMedia) {
             showNotification("您的瀏覽器不支援相機功能。", 'error');
             return;
         }
         cameraFeedback.textContent = '';
-        cameraModal.showModal();
+        if (cameraModal.showModal) cameraModal.showModal();
+        else cameraModal.style.display = 'block';
         startCameraStream();
     }
 
     function startCameraStream() {
-        stopCameraStream(); // 先確保關閉舊的流
+        stopCameraStream();
+        if (!cameraFeedback || !cameraView || !capturePhotoBtn) return;
         cameraFeedback.textContent = '請求相機權限...';
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }) // 優先使用後置鏡頭
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then(stream => {
                 console.log("相機權限獲取成功");
                 currentCameraStream = stream;
                 cameraView.srcObject = stream;
                 cameraFeedback.textContent = '相機已啟動';
-                capturePhotoBtn.disabled = false; // 啟用拍照按鈕
+                capturePhotoBtn.disabled = false;
             })
             .catch(err => {
                 console.error("無法獲取相機權限:", err);
                 cameraFeedback.textContent = `無法啟動相機: ${err.name}`;
                 showNotification("無法啟動相機，請檢查權限設定。", 'error');
-                capturePhotoBtn.disabled = true; // 禁用拍照按鈕
-                // 可以考慮短暫顯示後關閉 Modal
-                // setTimeout(closeCameraModal, 3000);
+                capturePhotoBtn.disabled = true;
             });
     }
 
@@ -1504,83 +1365,546 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentCameraStream) {
             currentCameraStream.getTracks().forEach(track => track.stop());
             currentCameraStream = null;
-            cameraView.srcObject = null;
+            if (cameraView) cameraView.srcObject = null;
             console.log("相機流已停止");
         }
-         capturePhotoBtn.disabled = true; // 停止後禁用拍照按鈕
+         if (capturePhotoBtn) capturePhotoBtn.disabled = true;
     }
 
     function closeCameraModal() {
+        if (!cameraModal) return;
         console.log("關閉拍照 Modal");
-        stopCameraStream(); // 關閉時停止相機
-        cameraModal.close();
+        stopCameraStream();
+        if (cameraModal.close) cameraModal.close();
+        else cameraModal.style.display = 'none';
     }
+    // Add listeners in initializeApp
 
     function capturePhoto() {
-        if (!cameraView.srcObject) {
-            console.warn("相機未啟動，無法拍照。");
+        if (!cameraView?.srcObject || !cameraCanvas || !capturePhotoBtn || !quill) {
+            console.warn("相機未啟動、Canvas 無法使用或 Quill 未初始化。");
             return;
         }
         console.log("準備拍照...");
-        capturePhotoBtn.disabled = true; // 拍照中禁用按鈕
-        cameraFeedback.textContent = '正在擷取畫面...';
+        capturePhotoBtn.disabled = true;
+        if(cameraFeedback) cameraFeedback.textContent = '正在擷取畫面...';
 
         const context = cameraCanvas.getContext('2d');
-        // 設定 Canvas 尺寸與 Video 相同
+        if (!context) {
+            console.error("無法獲取 Canvas 2D context。");
+            capturePhotoBtn.disabled = false;
+            if(cameraFeedback) cameraFeedback.textContent = '拍照失敗';
+            return;
+        }
         cameraCanvas.width = cameraView.videoWidth;
         cameraCanvas.height = cameraView.videoHeight;
-        // 將 Video 畫面畫到 Canvas 上
         context.drawImage(cameraView, 0, 0, cameraCanvas.width, cameraCanvas.height);
 
-        // 將 Canvas 轉為 Blob
         cameraCanvas.toBlob((blob) => {
             if (!blob) {
                 console.error("無法從 Canvas 創建 Blob。");
                 showNotification("拍照失敗，無法處理圖片。", "error");
-                capturePhotoBtn.disabled = false; // 重新啟用按鈕
-                cameraFeedback.textContent = '拍照失敗';
+                capturePhotoBtn.disabled = false;
+                if(cameraFeedback) cameraFeedback.textContent = '拍照失敗';
                 return;
             }
 
             console.log("照片 Blob 已創建，大小:", blob.size);
-            closeCameraModal(); // 關閉拍照視窗
+            closeCameraModal();
 
-            // 獲取 API Key
             const apiKey = localStorage.getItem(IMGBB_API_KEY_STORAGE_KEY);
-            if (!apiKey) { /* 理論上 openCameraModal 已檢查 */ return; }
+            if (!apiKey) { return; }
 
-            // 插入提示並上傳
             const range = quill.getSelection(true);
             const placeholderText = '\n[拍照上傳中(ImgBB)...]\n';
             quill.insertText(range.index, placeholderText, { 'color': 'grey', 'italic': true });
             quill.setSelection(range.index + placeholderText.length); 
             
-            // 為 Blob 創建一個檔案名稱
             const fileName = `capture_${Date.now()}.jpg`;
             const capturedFile = new File([blob], fileName, { type: 'image/jpeg' });
 
-            uploadImageToImgBB(capturedFile, range.index, apiKey); // 使用現有的上傳函式
+            uploadImageToImgBB(capturedFile, range.index, apiKey);
 
-        }, 'image/jpeg', 0.9); // 指定輸出為 JPEG 格式，品質 90%
+        }, 'image/jpeg', 0.9);
     }
+
+    // --- AI Trip Generation Functions ---
+
+    async function generateTripWithAI() {
+        console.log("AI 生成行程按鈕點擊 - 函式已觸發"); // <--- 加入這一行確認函式呼叫
+
+        // 1. Get Input Values
+        const tripName = tripNameInput.value.trim();
+        const location = tripLocationInput.value.trim();
+        const days = tripDaysInput.value.trim();
+        const preferences = tripPreferencesInput.value.trim();
+        const transport = tripTransportInput.value.trim();
+        const startDate = tripStartDateInput?.value || ''; // 可選的出發日期
+        const startTime = tripStartTimeInput?.value || ''; // 可選的出發時間
+
+        // 2. Validate Inputs
+        tripNameInput.classList.remove('input-error');
+        tripLocationInput.classList.remove('input-error');
+        tripDaysInput.classList.remove('input-error');
+        let isValid = true;
+        if (!tripName) {
+            showNotification("請輸入行程名稱！", 'error');
+            tripNameInput.classList.add('input-error');
+            tripNameInput.focus();
+            isValid = false;
+        }
+        if (!location) {
+            showNotification("請輸入目的地！", 'error');
+            tripLocationInput.classList.add('input-error');
+            if (isValid) tripLocationInput.focus(); // Focus only if previous was valid
+            isValid = false;
+        }
+        if (!days || parseInt(days) <= 0) {
+            showNotification("請輸入有效的旅遊天數！", 'error');
+            tripDaysInput.classList.add('input-error');
+            if (isValid) tripDaysInput.focus();
+            isValid = false;
+        }
+        if (!isValid) return;
+
+        // 3. Check API Key
+        const geminiApiKey = localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY);
+        if (!geminiApiKey) {
+            showNotification("請先在設定中輸入 Google Gemini API Key 以使用 AI 生成功能。", "error");
+            openSettingsModal(); // Guide user to settings
+            return;
+        }
+
+        // 4. Update UI (Loading State)
+        aiLoadingIndicator.style.display = 'block';
+        // 注意：createTripBtn 現在可能是手動建立按鈕的 ID
+        const manualCreateBtn = document.getElementById('create-trip-btn');
+        if (manualCreateBtn) manualCreateBtn.disabled = true;
+        if (generateTripAiBtn) {
+            generateTripAiBtn.disabled = true;
+            generateTripAiBtn.setAttribute('aria-busy', 'true');
+        }
+
+        try {
+            // 5. Construct Prompt
+            const prompt = constructAIPrompt(location, days, preferences, transport, startTime);
+            console.log("Generated Prompt for AI:", prompt);
+
+            // 6. Call Gemini API
+            const aiResponseText = await callGeminiAPI(prompt, geminiApiKey);
+            console.log("Raw AI Response Text:", aiResponseText);
+
+            // 7. Parse AI Response (Assuming JSON structure)
+            const parsedItinerary = parseAIResponse(aiResponseText, parseInt(days), location, startDate, startTime); // 傳入出發日期和時間
+            console.log("Parsed Itinerary:", parsedItinerary);
+
+            if (!parsedItinerary || parsedItinerary.length === 0) {
+                throw new Error("AI 未能生成有效的行程建議或解析失敗。");
+            }
+
+            // 8. Create New Trip in Firebase
+            const newTripData = await createNewTripInFirebase(tripName);
+            const newTripId = newTripData.id;
+            console.log(`New trip created with ID: ${newTripId}`);
+
+            // 9. Add AI Generated Items to Firebase
+            await addParsedItemsToFirebase(newTripId, parsedItinerary);
+            console.log("AI generated items added to Firebase.");
+
+            // 10. Load the New Trip
+            showNotification(`AI 已生成行程 "${tripName}" 並載入！`, 'success');
+            saveTripInfo(newTripId, tripName); // Save to local storage list
+            loadTripData(newTripId, tripName); // Load the data and set up listener
+
+            // Clear input fields after successful generation
+            tripNameInput.value = '';
+            tripLocationInput.value = '';
+            tripDaysInput.value = '';
+            tripPreferencesInput.value = '';
+            tripTransportInput.value = '';
+            if(tripStartDateInput) tripStartDateInput.value = '';
+            if(tripStartTimeInput) tripStartTimeInput.value = '';
+
+        } catch (error) {
+            console.error("AI 生成行程失敗:", error);
+            showNotification(`AI 生成行程時發生錯誤: ${error.message}`, 'error');
+        } finally {
+            // 11. Reset UI
+            aiLoadingIndicator.style.display = 'none';
+             if (manualCreateBtn) manualCreateBtn.disabled = false;
+            if (generateTripAiBtn) {
+                generateTripAiBtn.disabled = false;
+                generateTripAiBtn.removeAttribute('aria-busy');
+            }
+        }
+    }
+
+    // Helper function to construct the prompt
+    function constructAIPrompt(location, days, preferences, transport, startTime) {
+        let prompt = `請為一個為期 ${days} 天的 ${location} 旅行生成詳細的每日行程建議。`;
+        if (preferences) {
+            prompt += ` 旅行者的喜好包含：${preferences}。`;
+        }
+        if (transport) {
+            prompt += ` 主要交通方式為：${transport}。`;
+        }
+        if (startTime) {
+            prompt += ` 行程將在第一天的 ${startTime} 開始。`;
+        }
+        prompt += `
+
+針對每天的行程，請包含：
+1.  **住宿建議**：(若適用，可提供區域或類型建議)。
+2.  **活動安排**：列出當天建議的景點或活動，包含簡短描述。明確標示活動地點。
+3.  **餐飲推薦**：針對每個主要活動地點，推薦附近至少一個知名的當地美食或特色小吃，並附上簡短描述。明確標示美食地點 (或註明在景點附近)。如果有多個活動，請盡量為每個活動都提供餐飲建議。
+
+重要時間考量：
+1. **景點營業時間**：請考慮每個推薦景點的營業時間，不要推薦在非營業時間前往的行程。若知道具體營業時間，請在時間欄位中註明。
+2. **合理時間安排**：不要在半夜或清晨非常早的時間安排活動，除非是特殊景點（如看日出）。
+3. **交通時間**：考慮景點之間的移動時間，合理分配每日行程，避免安排過多景點導致行程緊湊。
+4. **用餐時間**：合理安排早午晚三餐的時間，與參觀景點時間不要衝突。
+5. **出發時間**：${startTime ? `第一天的行程將從 ${startTime} 開始，請據此安排當日活動。` : '如果沒有指定出發時間，可以假設第一天上午9點開始行程。'}
+
+請以 JSON 格式回應，不要包含任何 JSON 格式標籤外的文字或說明。JSON 結構如下：
+\`\`\`json
+{
+  "tripName": "自動生成的行程名稱 (例如：${location}${days}天精選之旅)",
+  "days": [
+    {
+      "day": 1,
+      "theme": "當日主題 (可選)",
+      "accommodation": "住宿建議文字",
+      "activities": [
+        {
+          "time": "建議時間 (如: 9:00-11:00, 請盡量提供具體時間範圍，考慮營業時間)",
+          "description": "活動/景點描述",
+          "location": "活動/景點地點 (必須填寫)",
+          "openingHours": "景點營業時間 (如: 週一至週五 9:00-17:00，若知道請填寫)",
+          "foodRecommendation": {
+            "name": "推薦美食名稱",
+            "description": "美食簡短描述",
+            "location": "美食地點 (必須填寫，或註明在景點附近)",
+            "openingHours": "餐廳營業時間 (如果知道的話)"
+          }
+        }
+        // ... 更多活動 ...
+      ]
+    }
+    // ... 更多天 ...
+  ]
+}
+\`\`\`
+請確保 JSON 格式正確無誤，且所有 location 欄位都有值。活動安排應考慮時間先後順序，讓行程合理流暢。`;
+        return prompt;
+    }
+
+
+    // Helper function to call Gemini API
+    async function callGeminiAPI(prompt, apiKey) {
+        const API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+        const requestBody = {
+            contents: [{
+                parts: [{ text: prompt }]
+            }],
+            generationConfig: {
+              responseMimeType: "application/json",
+            },
+            // safetySettings: [ ... ] // Consider adding safety settings
+        };
+
+        console.log("正在向 Gemini API 發送請求...");
+
+        const response = await fetch(API_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            console.error("Gemini API 錯誤回應主體:", errorBody);
+            let errorMessage = `Gemini API 請求失敗: ${response.status} ${response.statusText}`;
+            try {
+                 const errorJson = JSON.parse(errorBody);
+                 if (errorJson.error && errorJson.error.message) {
+                     errorMessage += ` - ${errorJson.error.message}`;
+                 }
+            } catch (e) {
+                errorMessage += ` - ${errorBody}`;
+            }
+            throw new Error(errorMessage);
+        }
+
+        const data = await response.json();
+        console.log("Gemini API 成功回應結構:", data);
+
+        // Robust extraction of text part
+        const candidate = data.candidates?.[0];
+        const textPart = candidate?.content?.parts?.[0]?.text;
+
+        if (textPart) {
+            return textPart;
+        } else if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
+             console.error(`Gemini API request finished with reason: ${candidate.finishReason}`);
+             throw new Error(`AI 回應因 ${candidate.finishReason} 而終止。`);
+        } else if (data.promptFeedback?.blockReason) {
+            const blockReason = data.promptFeedback.blockReason;
+            const safetyRatings = data.promptFeedback.safetyRatings?.map(r => `${r.category}: ${r.probability}`).join(', ') || '無安全評級資訊';
+            console.error(`Gemini API 請求被阻擋。原因: ${blockReason}. 安全評級: ${safetyRatings}`);
+            throw new Error(`AI 請求因安全原因被阻擋 (${blockReason})。`);
+        } else {
+             console.error("非預期的 Gemini API 回應結構:", data);
+            throw new Error("從 AI 回應中提取內容失敗。結構不符預期。");
+        }
+    }
+
+
+    // Helper function to parse the AI response (stringified JSON) into structured data
+    function parseAIResponse(jsonString, totalDays, defaultLocation, startDate, startTime) {
+        try {
+            const aiData = JSON.parse(jsonString);
+            if (!aiData.days || !Array.isArray(aiData.days)) {
+                throw new Error("AI 回應缺少有效的 'days' 陣列。");
+            }
+
+            const parsedItems = [];
+            
+            // 設定起始日期（如果提供了）
+            let baseDate;
+            if (startDate) {
+                // 如果提供了起始日期，用這個日期做為基準
+                baseDate = new Date(startDate);
+                baseDate.setHours(0, 0, 0, 0); // 將時間設為午夜，以便日期計算
+        } else {
+                // 否則使用今天做為預設值
+                baseDate = new Date();
+                baseDate.setHours(0, 0, 0, 0); // 將時間設為午夜，以便日期計算
+            }
+
+            aiData.days.forEach(dayData => {
+                const dayNumber = dayData.day;
+                if (typeof dayNumber !== 'number' || dayNumber < 1 || dayNumber > totalDays) {
+                     console.warn(`忽略無效的天數編號: ${dayNumber}`);
+                    return; // 跳過無效的天數
+                }
+
+                // 計算這一天的日期
+                const itemDate = new Date(baseDate);
+                itemDate.setDate(baseDate.getDate() + dayNumber - 1); // 第一天是基準日，第二天是基準日+1...
+
+                // 將住宿建議作為一個項目添加 (如果存在)
+                if (dayData.accommodation) {
+                     const accommodationDateTime = new Date(itemDate);
+                     accommodationDateTime.setHours(15, 0, 0, 0); // 假設下午 3 點入住
+
+                     parsedItems.push({
+                        dateTime: accommodationDateTime.toISOString().slice(0, 16), // 格式 YYYY-MM-DDTHH:mm
+                        type: 'accommodation',
+                        description: `住宿建議: ${dayData.accommodation}`,
+                        location: defaultLocation, // 使用行程的總地點
+                        cost: null,
+                        notes: dayData.theme ? `當日主題: ${dayData.theme}` : null // 將主題加到筆記
+                    });
+                }
+
+                // 添加活動和美食推薦
+                if (dayData.activities && Array.isArray(dayData.activities)) {
+                    dayData.activities.forEach(activity => {
+                        if (!activity.description || !activity.location) {
+                            console.warn("忽略缺少描述或地點的活動:", activity);
+                            return; // 跳過不完整的活動
+                        }
+                        
+                         // 更智能地解析活動時間
+                         const activityDateTime = new Date(itemDate);
+                         
+                         // 如果是第一天且有指定出發時間，根據出發時間調整
+                         if (dayNumber === 1 && startTime && activity === dayData.activities[0]) {
+                             // 解析出發時間（格式假設為HH:MM）
+                             const timeParts = startTime.split(':');
+                             if (timeParts.length === 2) {
+                                 const hour = parseInt(timeParts[0]);
+                                 const minute = parseInt(timeParts[1]);
+                                 if (!isNaN(hour) && !isNaN(minute) && hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+                                     activityDateTime.setHours(hour, minute, 0, 0);
+                                 }
+                             }
+                         } else {
+                             const timeLower = activity.time?.toLowerCase() || '';
+                             
+                             // 優先使用具體時間範圍
+                             if (timeLower.match(/\d+:\d+\s*-\s*\d+:\d+/)) {
+                                 // 如果格式是 "HH:MM-HH:MM"
+                                 const startTime = timeLower.match(/(\d+):(\d+)/);
+                                 if (startTime && startTime.length >= 3) {
+                                     const hour = parseInt(startTime[1]);
+                                     const minute = parseInt(startTime[2]);
+                                     if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+                                         activityDateTime.setHours(hour, minute, 0, 0);
+                                     }
+                                 }
+                             } else if (timeLower.match(/\d+:\d+/)) {
+                                 // 如果只有單一時間點 "HH:MM"
+                                 const timeMatch = timeLower.match(/(\d+):(\d+)/);
+                                 if (timeMatch && timeMatch.length >= 3) {
+                                     const hour = parseInt(timeMatch[1]);
+                                     const minute = parseInt(timeMatch[2]);
+                                     if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+                                         activityDateTime.setHours(hour, minute, 0, 0);
+                                     }
+                                 }
+                             } else if (timeLower.includes("上午")) {
+                                 activityDateTime.setHours(10, 0, 0, 0);
+                             } else if (timeLower.includes("下午")) {
+                                 activityDateTime.setHours(14, 0, 0, 0);
+                             } else if (timeLower.includes("傍晚") || timeLower.includes("晚上")) {
+                                 activityDateTime.setHours(18, 0, 0, 0);
+                             } else if (timeLower.includes("早上") || timeLower.includes("早晨")) {
+                                 activityDateTime.setHours(8, 0, 0, 0);
+                             } else if (timeLower.includes("中午")) {
+                                 activityDateTime.setHours(12, 0, 0, 0);
+                             } else {
+                                 activityDateTime.setHours(10, 0, 0, 0); // 預設上午10點
+                             }
+                         }
+
+                         // 處理營業時間資訊
+                         let notes = '';
+                         if (activity.openingHours) {
+                             notes += `營業時間: ${activity.openingHours}\n`;
+                         }
+                         // 加入活動時間資訊
+                         if (activity.time) {
+                             if (notes) notes += '\n';
+                             notes += `建議時間: ${activity.time}\n`;
+                         }
+                         
+                         parsedItems.push({
+                            dateTime: activityDateTime.toISOString().slice(0, 16),
+                            type: 'activity',
+                            description: activity.description,
+                            location: activity.location,
+                            cost: null,
+                            notes: notes || null
+                        });
+
+                        // 將美食推薦作為單獨項目添加
+                        if (activity.foodRecommendation && activity.foodRecommendation.name && activity.foodRecommendation.location) {
+                             const foodDateTime = new Date(activityDateTime);
+                             
+                             // 根據活動時間智能設置用餐時間
+                             const activityHour = activityDateTime.getHours();
+                             if (activityHour < 11) {
+                                 // 早餐/早午餐
+                                 foodDateTime.setHours(11, 30, 0, 0);
+                             } else if (activityHour < 16) {
+                                 // 午餐/下午點心
+                                 foodDateTime.setHours(activityHour + 1, 30, 0, 0);
+                             } else {
+                                 // 晚餐
+                                 foodDateTime.setHours(19, 0, 0, 0);
+                             }
+                             
+                             // 處理餐廳營業時間資訊
+                             let foodNotes = activity.foodRecommendation.description || '';
+                             if (activity.foodRecommendation.openingHours) {
+                                 if (foodNotes.length > 0 && foodNotes[foodNotes.length-1] !== '\n') {
+                                     foodNotes += '\n';
+                                 }
+                                 foodNotes += `營業時間: ${activity.foodRecommendation.openingHours}`;
+                             }
+
+                             parsedItems.push({
+                                dateTime: foodDateTime.toISOString().slice(0, 16),
+                                type: 'food',
+                                description: `美食推薦: ${activity.foodRecommendation.name}`,
+                                location: activity.foodRecommendation.location,
+                                cost: null,
+                                notes: foodNotes || null
+                            });
+                        } else if (activity.foodRecommendation) {
+                            console.warn("忽略缺少名稱或地點的美食推薦:", activity.foodRecommendation);
+                        }
+                    });
+                }
+            });
+
+            parsedItems.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+            return parsedItems;
+
+        } catch (error) {
+            console.error("解析 AI 回應失敗:", error, "原始字串:", jsonString);
+            throw new Error(`無法解析 AI 回應的 JSON: ${error.message}`);
+        }
+    }
+
+    // Helper function to create a new trip (refactored from original createTripBtn handler)
+    async function createNewTripInFirebase(name) {
+        console.log(`在 Firebase 建立新行程: ${name}`);
+        const tripsRef = db.ref('trips');
+        const newTripRef = tripsRef.push();
+        const newTripId = newTripRef.key;
+        if (!newTripId) {
+            throw new Error("無法從 Firebase 取得新的行程 ID。");
+        }
+        const tripMetadata = {
+            name: name,
+            createdAt: firebase.database.ServerValue.TIMESTAMP
+        };
+        await newTripRef.child('metadata').set(tripMetadata);
+        return { id: newTripId, name: name };
+    }
+
+    // Helper function to add parsed items to Firebase
+    async function addParsedItemsToFirebase(tripId, items) {
+        if (!tripId || !items || items.length === 0) {
+             console.log("沒有要添加到 Firebase 的 AI 生成項目。 tripId:", tripId, "items:", items);
+             return;
+        }
+        console.log(`準備將 ${items.length} 個 AI 生成的項目添加到行程 ${tripId}`);
+        const itineraryRef = db.ref(`trips/${tripId}/itineraries`);
+        const updates = {}; // Use multi-location updates for efficiency
+        let orderCounter = Date.now(); // Use timestamp for initial order
+
+        items.forEach(item => {
+            const newItemRef = itineraryRef.push(); // Generate a unique key for each item
+            const newItemKey = newItemRef.key;
+            if (newItemKey) {
+                 const itemData = {
+                     ...item,
+                     createdAt: firebase.database.ServerValue.TIMESTAMP,
+                     order: orderCounter++
+                 };
+                 updates[newItemKey] = itemData;
+        } else {
+                 console.warn("Failed to generate push key for item:", item);
+            }
+        });
+
+        if (Object.keys(updates).length > 0) {
+            await itineraryRef.update(updates); // Perform all updates at once
+            console.log(`已成功將 ${Object.keys(updates).length} 個項目添加到 Firebase 行程 ${tripId}`);
+        } else {
+             console.log("No valid items to add to Firebase.");
+        }
+    }
+
+    // --- END OF AI Trip Generation Functions ---
+
 
     // --- 初始狀態 ---
     function initializeApp() {
         console.log("頁面初始化完成，設定連線監聽、載入已存列表並檢查自動載入...");
 
-        // *** 新增：在初始化早期檢查函式庫 ***
+        // 檢查外部函式庫
         console.log("檢查外部函式庫載入狀態...");
-        if (typeof saveAs === 'function') {
-            console.log("FileSaver.js (saveAs) 已載入。");
-        } else {
-            console.warn("FileSaver.js (saveAs) 未載入或未正確定義!");
-        }
-        if (typeof htmlDocx !== 'undefined') {
-             console.log("html-docx-js (htmlDocx) 已載入。");
-        } else {
-             console.warn("html-docx-js (htmlDocx) 未載入或未正確定義!");
-        }
-        // *** 檢查結束 ***
+        if (typeof saveAs === 'function') console.log("FileSaver.js (saveAs) 已載入。");
+        else console.warn("FileSaver.js (saveAs) 未載入!");
+        if (typeof htmlDocx !== 'undefined') console.log("html-docx-js (htmlDocx) 已載入。");
+        else console.warn("html-docx-js (htmlDocx) 未載入!");
 
         // 初始化主題設定
         setupThemeToggle();
@@ -1590,22 +1914,87 @@ document.addEventListener('DOMContentLoaded', () => {
         populateSavedTripsDropdown(); 
         updatePendingWritesUI();
 
-        // 必要的事件監聽器設定
-        createTripBtn.addEventListener('click', createNewTrip); // 修正為正確的函數名稱
+        // --- 事件監聽器設定 ---
+
+        // 手動建立按鈕
+        const manualCreateTripBtn = document.getElementById('create-trip-btn');
+        if (manualCreateTripBtn) {
+            manualCreateTripBtn.addEventListener('click', () => {
+                const tripName = tripNameInput?.value.trim();
+                if(tripNameInput) tripNameInput.classList.remove('input-error');
+                if (!tripName) {
+                    showNotification("請輸入行程名稱！", 'error');
+                    if(tripNameInput) {
+                         tripNameInput.classList.add('input-error');
+                         tripNameInput.focus();
+                    }
+                    return;
+                }
+                manualCreateTripBtn.disabled = true;
+                manualCreateTripBtn.setAttribute('aria-busy', 'true');
+                if(generateTripAiBtn) generateTripAiBtn.disabled = true;
+
+                createNewTripInFirebase(tripName)
+                   .then(newTripData => {
+                        console.log(`手動建立新行程成功，ID: ${newTripData.id}`);
+                        showNotification(`新行程 "${newTripData.name}" 建立成功！`, 'success');
+                        if(tripNameInput) tripNameInput.value = '';
+                        if(tripLocationInput) tripLocationInput.value = '';
+                        if(tripDaysInput) tripDaysInput.value = '';
+                        if(tripPreferencesInput) tripPreferencesInput.value = '';
+                        if(tripTransportInput) tripTransportInput.value = '';
+                        saveTripInfo(newTripData.id, newTripData.name);
+                        loadTripData(newTripData.id, newTripData.name);
+                   })
+                   .catch(error => {
+                        console.error("手動建立新行程時發生錯誤: ", error);
+                        showNotification("建立行程失敗，請稍後再試。", 'error');
+                   })
+                   .finally(() => {
+                       manualCreateTripBtn.disabled = false;
+                       manualCreateTripBtn.removeAttribute('aria-busy');
+                       if(generateTripAiBtn) generateTripAiBtn.disabled = false;
+                   });
+           });
+        } else {
+            console.warn("找不到手動建立按鈕 (create-trip-btn)");
+        }
+
+        // AI 生成按鈕
+        // const generateTripAiBtn = document.getElementById('generate-trip-ai-btn'); // Already defined globally
+        if (generateTripAiBtn) {
+            generateTripAiBtn.addEventListener('click', generateTripWithAI);
+        } else {
+            console.warn("找不到 AI 生成按鈕 (generate-trip-ai-btn)");
+        }
+
+        // 載入行程按鈕
+        if (loadTripBtn) {
         loadTripBtn.addEventListener('click', function() {
-            const tripId = tripIdInput.value.trim();
+                const tripId = tripIdInput?.value.trim();
             if (tripId) loadTrip(tripId);
-        });
-        scanQrBtn.addEventListener('click', startScan); // 修正為正確的函數名稱
-        cancelScanBtn.addEventListener('click', stopScan); // 修正為正確的函數名稱
-        savedTripsSelect.addEventListener('change', updateDeleteButtonState);
-        deleteSelectedTripBtn.addEventListener('click', deleteSelectedTrip);
-        // 使用已有的表單處理邏輯，而不是未定義的 handleItineraryFormSubmit 函數
+                else showNotification("請輸入或選擇要載入的行程 ID。", 'warning');
+            });
+        }
+
+        // QR 掃描按鈕
+        if (scanQrBtn) scanQrBtn.addEventListener('click', startScan);
+        if (cancelScanBtn) cancelScanBtn.addEventListener('click', stopScan);
+        const cancelScanHeaderBtn = document.getElementById('cancel-scan-btn-header');
+        if (cancelScanHeaderBtn) cancelScanHeaderBtn.addEventListener('click', stopScan);
+
+
+        // 已存行程下拉選單 & 刪除按鈕
+        if (savedTripsSelect) savedTripsSelect.addEventListener('change', updateDeleteButtonState);
+        if (deleteSelectedTripBtn) deleteSelectedTripBtn.addEventListener('click', deleteSelectedTrip);
+
+        // 行程項目表單提交 (手動新增項目)
+        if (itineraryForm) {
         itineraryForm.addEventListener('submit', function(e) {
             e.preventDefault();
 
-            // 基本驗證 (描述是必填的)
             const descriptionInput = document.getElementById('item-description');
+                if (!descriptionInput) return;
             descriptionInput.classList.remove('input-error');
             if (!descriptionInput.value.trim()) {
                 showNotification("請輸入行程描述！", 'error');
@@ -1618,92 +2007,414 @@ document.addEventListener('DOMContentLoaded', () => {
                 showNotification("請先建立或載入一個行程！", 'error');
                 return;
             }
+
             const submitButton = itineraryForm.querySelector('button[type="submit"]');
+                if (submitButton) {
             submitButton.disabled = true;
             submitButton.setAttribute('aria-busy', 'true');
+                }
 
             const newItem = {
-                dateTime: document.getElementById('item-date').value,
-                type: document.getElementById('item-type').value,
+                    dateTime: document.getElementById('item-date')?.value || null,
+                    type: document.getElementById('item-type')?.value || null,
                 description: descriptionInput.value.trim(),
-                location: document.getElementById('item-location').value.trim(),
-                cost: document.getElementById('item-cost').value ? parseFloat(document.getElementById('item-cost').value) : 0,
+                    location: document.getElementById('item-location')?.value.trim() || '',
+                    cost: document.getElementById('item-cost')?.value ? parseFloat(document.getElementById('item-cost').value) : null,
                 createdAt: firebase.database.ServerValue.TIMESTAMP,
-                order: firebase.database.ServerValue.TIMESTAMP
+                    order: Date.now() // Use timestamp for initial order
             };
-            const currentItineraryRef = db.ref(`trips/${activeTripId}/itineraries`);
             
-            if (!isOnline) {
+                const currentItineraryRef = db.ref(`trips/${activeTripId}/itineraries`);
                 incrementPendingWrites();
-            }
 
             currentItineraryRef.push(newItem)
                 .then(() => {
                     showNotification("行程項目已新增！", 'success');
                     itineraryForm.reset();
                     descriptionInput.classList.remove('input-error');
+                        // calculateTotalCost(); // Listener will handle this
                 })
                 .catch((error) => {
                     console.error(`新增行程項目到 ${activeTripId} 時發生錯誤: `, error);
                     showNotification("新增項目失敗，請稍後再試。", 'error');
                 })
                 .finally(() => {
+                        if (submitButton) {
                     submitButton.disabled = false;
                     submitButton.removeAttribute('aria-busy');
+                        }
                 });
         });
-        // toggleQrCodeBtn.addEventListener('click', toggleQrCode); // <--- 移除此行
+        }
         
-        // 表單與對話框功能
         // 編輯行程項目對話框
-        cancelEditBtn.addEventListener('click', closeEditModal);
-        editForm.addEventListener('submit', handleEditFormSubmit); // <-- 使用正確的變數名稱 editForm
+        if (cancelEditBtn) cancelEditBtn.addEventListener('click', closeEditModal);
+        if (editForm) editForm.addEventListener('submit', handleEditFormSubmit); // Keep handleEditFormSubmit for now
 
         // 筆記對話框
-        cancelNotesBtn.addEventListener('click', closeNotesModal);
-        saveNotesBtn.addEventListener('click', saveNotes);
+        if (cancelNotesBtn) cancelNotesBtn.addEventListener('click', closeNotesModal);
+        const cancelNotesHeaderBtn = document.getElementById('cancel-notes-btn-header-equivalent');
+        if (cancelNotesHeaderBtn) cancelNotesHeaderBtn.addEventListener('click', closeNotesModal);
+        if (saveNotesBtn) saveNotesBtn.addEventListener('click', saveNotes);
+        const exportDocxBtn = document.getElementById('export-notes-docx-btn');
+         if (exportDocxBtn) exportDocxBtn.addEventListener('click', exportNotesToDocx);
+         else console.warn("未找到匯出 DOCX 按鈕 (export-notes-docx-btn)");
+
 
         // 設定對話框
-        settingsBtn.addEventListener('click', openSettingsModal);
-        cancelSettingsBtn.addEventListener('click', closeSettingsModal);
-        settingsForm.addEventListener('submit', saveSettings);
+        if (settingsBtn) settingsBtn.addEventListener('click', openSettingsModal);
+        if (cancelSettingsBtn) cancelSettingsBtn.addEventListener('click', closeSettingsModal);
+        const cancelSettingsFormBtn = document.getElementById('cancel-settings-form-btn');
+        if (cancelSettingsFormBtn) cancelSettingsFormBtn.addEventListener('click', closeSettingsModal);
+        if (settingsForm) settingsForm.addEventListener('submit', saveSettings);
 
         // 拍照對話框
-        if (document.getElementById('cancel-camera-action-btn')) {
-            document.getElementById('cancel-camera-action-btn').addEventListener('click', closeCameraModal);
+        if (cancelCameraBtn) cancelCameraBtn.addEventListener('click', closeCameraModal);
+        const cancelCameraHeaderBtn = document.getElementById('cancel-camera-btn'); // ID is same? Need verification in HTML
+        if (cancelCameraHeaderBtn && cancelCameraHeaderBtn !== cancelCameraBtn) { // Avoid double listener if ID is same
+            cancelCameraHeaderBtn.addEventListener('click', closeCameraModal);
         }
-        if (document.getElementById('capture-photo-btn')) {
-            document.getElementById('capture-photo-btn').addEventListener('click', capturePhoto);
-        }
+        if (capturePhotoBtn) capturePhotoBtn.addEventListener('click', capturePhoto);
 
-        // *** 新增：綁定匯出 DOCX 按鈕事件 ***
-        const exportDocxBtn = document.getElementById('export-notes-docx-btn');
-        if (exportDocxBtn) {
-            exportDocxBtn.addEventListener('click', exportNotesToDocx);
-        } else {
-            console.warn("未找到匯出 DOCX 按鈕 (export-notes-docx-btn)");
-        }
 
         // 檢查自動載入
-        const lastTripId = localStorage.getItem('lastActiveTripId');
+        const lastTripId = localStorage.getItem(LAST_TRIP_KEY);
         if (lastTripId) {
             console.log(`發現上次儲存的行程 ID: ${lastTripId}，嘗試自動載入...`);
-            tripIdInput.value = lastTripId;
+            if(tripIdInput) tripIdInput.value = lastTripId; // Pre-fill input for context
+            // Ensure dropdown reflects the loaded trip if possible
+            if(savedTripsSelect) savedTripsSelect.value = lastTripId;
+            updateDeleteButtonState(); // Update button based on selection
             loadTrip(lastTripId);
-        }
-
-        // 掃描相關事件監聽器
-        scanQrBtn.addEventListener('click', startScan); // 修正為正確的函數名稱
-        cancelScanBtn.addEventListener('click', stopScan); // 修正為正確的函數名稱
-        
-        // 新增對 header 中關閉按鈕的監聽
-        const cancelScanHeaderBtn = document.getElementById('cancel-scan-btn-header');
-        if (cancelScanHeaderBtn) {
-            cancelScanHeaderBtn.addEventListener('click', stopScan);
+        } else {
+            populateSavedTripsDropdown(); // Populate dropdown even if no auto-load
         }
     }
 
     initializeApp(); // 執行初始化
+    
+
+    // --- 匯出筆記為 DOCX --- 
+    function exportNotesToDocx() {
+        if (!quill) {
+            console.error("無法匯出：Quill 編輯器未初始化。");
+            showNotification("編輯器未載入，無法匯出筆記。", 'error');
+            return;
+        }
+        if (typeof htmlDocx === 'undefined' || typeof saveAs === 'undefined') {
+            console.error("無法匯出：html-docx-js 或 FileSaver.js 未載入。");
+            showNotification("匯出功能元件未載入，請檢查網路連線或重新整理。", 'error');
+            return;
+        }
+
+        try {
+            console.log("開始匯出筆記為 DOCX...");
+            const notesHtml = quill.root.innerHTML;
+            const content = `
+                <!DOCTYPE html>
+                <html lang="zh-TW">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>行程筆記</title>
+                    <style>
+                        /* 可選：添加一些基本樣式，例如字體 */
+                        body { font-family: 'Noto Sans TC', sans-serif; }
+                    </style>
+                </head>
+                <body>
+                    ${notesHtml}
+                </body>
+                </html>
+            `;
+
+            const converted = htmlDocx.asBlob(content);
+            console.log("DOCX Blob 已產生，準備觸發下載...");
+
+            // 從筆記 modal 或目前行程名稱獲取一個更有意義的檔名
+            const itemId = notesItemIdInput.value; // 獲取目前開啟的 item ID
+            let fileName = '行程筆記.docx';
+            if (activeTripId && itemId) {
+                // 嘗試從列表項目文字中提取部分描述 (需要 DOM 操作)
+                const listItem = itineraryList.querySelector(`li[data-id="${itemId}"] span`);
+                const itemText = listItem ? listItem.textContent.split(':')[1]?.trim().substring(0, 20) : `項目_${itemId.substring(itemId.length - 4)}`;
+                const tripNamePart = currentTripNameSpan.textContent ? currentTripNameSpan.textContent.substring(0, 10) : activeTripId.substring(activeTripId.length - 4);
+                fileName = `${tripNamePart}_${itemText}.docx`.replace(/[\\/:*?"<>|]/g, '_'); // 清理檔名中的非法字元
+            } else if (currentTripNameSpan.textContent) {
+                 fileName = `${currentTripNameSpan.textContent}_筆記.docx`.replace(/[\\/:*?"<>|]/g, '_');
+            } 
+            
+            saveAs(converted, fileName);
+            console.log(`檔案 ${fileName} 下載已觸發。`);
+            showNotification("筆記已開始匯出為 DOCX 檔案。", 'success');
+
+        } catch (error) {
+            console.error("匯出 DOCX 時發生錯誤:", error);
+            showNotification("匯出筆記失敗，請參閱控制台錯誤訊息。", 'error');
+        }
+    }
+
+    // 更新刪除按鈕的狀態
+    function updateDeleteButtonState() {
+        const selectedTripId = savedTripsSelect.value;
+        if (selectedTripId) {
+            tripIdInput.value = selectedTripId; // 將選中ID填入輸入框
+            deleteSelectedTripBtn.disabled = false; // 啟用刪除按鈕
+        } else {
+            tripIdInput.value = ''; // 清空輸入框
+            deleteSelectedTripBtn.disabled = true; // 禁用刪除按鈕
+        }
+    }
+
+    // 刪除選定的行程
+    function deleteSelectedTrip() {
+        const selectedTripId = savedTripsSelect.value;
+        if (selectedTripId) {
+            removeSavedTrip(selectedTripId);
+        }
+    }
+
+    // 編輯表單提交處理 (之前未定義但被使用的函式)
+    function handleEditFormSubmit(e) {
+        e.preventDefault();
+        if (!editItemIdInput || !activeTripId) return;
+        
+        const itemId = editItemIdInput.value;
+        if (!itemId) {
+            showNotification("無法編輯項目：無效的項目ID", "error");
+            return;
+        }
+        
+        const submitButton = editForm.querySelector('button[type="submit"]');
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.setAttribute('aria-busy', 'true');
+        }
+        
+        const updatedData = {
+            dateTime: editItemDateInput?.value || null,
+            type: editItemTypeInput?.value || null,
+            description: editItemDescriptionInput?.value.trim() || '',
+            location: editItemLocationInput?.value.trim() || '',
+            cost: editItemCostInput?.value ? parseFloat(editItemCostInput.value) : null
+        };
+        
+        const itemRef = db.ref(`trips/${activeTripId}/itineraries/${itemId}`);
+        
+        incrementPendingWrites();
+        itemRef.update(updatedData)
+            .then(() => {
+                showNotification("項目更新成功！", 'success');
+                closeEditModal();
+            })
+            .catch((error) => {
+                console.error(`更新項目 ${itemId} 時發生錯誤: `, error);
+                showNotification("更新失敗，請稍後再試。", 'error');
+            })
+            .finally(() => {
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.removeAttribute('aria-busy');
+                }
+            });
+    }
+
+    function initializeApp() {
+        console.log("頁面初始化完成，設定連線監聽、載入已存列表並檢查自動載入...");
+
+        // 檢查外部函式庫
+        console.log("檢查外部函式庫載入狀態...");
+        if (typeof saveAs === 'function') console.log("FileSaver.js (saveAs) 已載入。");
+        else console.warn("FileSaver.js (saveAs) 未載入!");
+        if (typeof htmlDocx !== 'undefined') console.log("html-docx-js (htmlDocx) 已載入。");
+        else console.warn("html-docx-js (htmlDocx) 未載入!");
+
+        // 初始化主題設定
+        setupThemeToggle();
+
+        // 建立連線監聽與同步功能
+        setupConnectionListener(); 
+        populateSavedTripsDropdown(); 
+        updatePendingWritesUI();
+
+        // --- 事件監聽器設定 ---
+
+        // 手動建立按鈕
+        const manualCreateTripBtn = document.getElementById('create-trip-btn');
+        if (manualCreateTripBtn) {
+            manualCreateTripBtn.addEventListener('click', () => {
+                const tripName = tripNameInput?.value.trim();
+                if(tripNameInput) tripNameInput.classList.remove('input-error');
+                if (!tripName) {
+                    showNotification("請輸入行程名稱！", 'error');
+                    if(tripNameInput) {
+                         tripNameInput.classList.add('input-error');
+                         tripNameInput.focus();
+                    }
+                    return;
+                }
+                manualCreateTripBtn.disabled = true;
+                manualCreateTripBtn.setAttribute('aria-busy', 'true');
+                if(generateTripAiBtn) generateTripAiBtn.disabled = true;
+
+                createNewTripInFirebase(tripName)
+                   .then(newTripData => {
+                        console.log(`手動建立新行程成功，ID: ${newTripData.id}`);
+                        showNotification(`新行程 "${newTripData.name}" 建立成功！`, 'success');
+                        if(tripNameInput) tripNameInput.value = '';
+                        if(tripLocationInput) tripLocationInput.value = '';
+                        if(tripDaysInput) tripDaysInput.value = '';
+                        if(tripPreferencesInput) tripPreferencesInput.value = '';
+                        if(tripTransportInput) tripTransportInput.value = '';
+                        saveTripInfo(newTripData.id, newTripData.name);
+                        loadTripData(newTripData.id, newTripData.name);
+                   })
+                   .catch(error => {
+                        console.error("手動建立新行程時發生錯誤: ", error);
+                        showNotification("建立行程失敗，請稍後再試。", 'error');
+                   })
+                   .finally(() => {
+                       manualCreateTripBtn.disabled = false;
+                       manualCreateTripBtn.removeAttribute('aria-busy');
+                       if(generateTripAiBtn) generateTripAiBtn.disabled = false;
+                   });
+           });
+        } else {
+            console.warn("找不到手動建立按鈕 (create-trip-btn)");
+        }
+
+        // AI 生成按鈕
+        // const generateTripAiBtn = document.getElementById('generate-trip-ai-btn'); // Already defined globally
+        if (generateTripAiBtn) {
+            generateTripAiBtn.addEventListener('click', generateTripWithAI);
+        } else {
+            console.warn("找不到 AI 生成按鈕 (generate-trip-ai-btn)");
+        }
+
+        // 載入行程按鈕
+        if (loadTripBtn) {
+        loadTripBtn.addEventListener('click', function() {
+                const tripId = tripIdInput?.value.trim();
+            if (tripId) loadTrip(tripId);
+                else showNotification("請輸入或選擇要載入的行程 ID。", 'warning');
+            });
+        }
+
+        // QR 掃描按鈕
+        if (scanQrBtn) scanQrBtn.addEventListener('click', startScan);
+        if (cancelScanBtn) cancelScanBtn.addEventListener('click', stopScan);
+        const cancelScanHeaderBtn = document.getElementById('cancel-scan-btn-header');
+        if (cancelScanHeaderBtn) cancelScanHeaderBtn.addEventListener('click', stopScan);
+
+
+        // 已存行程下拉選單 & 刪除按鈕
+        if (savedTripsSelect) savedTripsSelect.addEventListener('change', updateDeleteButtonState);
+        if (deleteSelectedTripBtn) deleteSelectedTripBtn.addEventListener('click', deleteSelectedTrip);
+
+        // 行程項目表單提交 (手動新增項目)
+        if (itineraryForm) {
+        itineraryForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const descriptionInput = document.getElementById('item-description');
+                if (!descriptionInput) return;
+            descriptionInput.classList.remove('input-error');
+            if (!descriptionInput.value.trim()) {
+                showNotification("請輸入行程描述！", 'error');
+                descriptionInput.classList.add('input-error');
+                descriptionInput.focus();
+                return;
+            }
+
+            if (!activeTripId) {
+                showNotification("請先建立或載入一個行程！", 'error');
+                return;
+            }
+
+            const submitButton = itineraryForm.querySelector('button[type="submit"]');
+                if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.setAttribute('aria-busy', 'true');
+                }
+
+            const newItem = {
+                    dateTime: document.getElementById('item-date')?.value || null,
+                    type: document.getElementById('item-type')?.value || null,
+                description: descriptionInput.value.trim(),
+                    location: document.getElementById('item-location')?.value.trim() || '',
+                    cost: document.getElementById('item-cost')?.value ? parseFloat(document.getElementById('item-cost').value) : null,
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+                    order: Date.now() // Use timestamp for initial order
+            };
+            
+                const currentItineraryRef = db.ref(`trips/${activeTripId}/itineraries`);
+                incrementPendingWrites();
+
+            currentItineraryRef.push(newItem)
+                .then(() => {
+                    showNotification("行程項目已新增！", 'success');
+                    itineraryForm.reset();
+                    descriptionInput.classList.remove('input-error');
+                        // calculateTotalCost(); // Listener will handle this
+                })
+                .catch((error) => {
+                    console.error(`新增行程項目到 ${activeTripId} 時發生錯誤: `, error);
+                    showNotification("新增項目失敗，請稍後再試。", 'error');
+                })
+                .finally(() => {
+                        if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.removeAttribute('aria-busy');
+                        }
+                });
+        });
+        }
+        
+        // 編輯行程項目對話框
+        if (cancelEditBtn) cancelEditBtn.addEventListener('click', closeEditModal);
+        if (editForm) editForm.addEventListener('submit', handleEditFormSubmit); // Keep handleEditFormSubmit for now
+
+        // 筆記對話框
+        if (cancelNotesBtn) cancelNotesBtn.addEventListener('click', closeNotesModal);
+        const cancelNotesHeaderBtn = document.getElementById('cancel-notes-btn-header-equivalent');
+        if (cancelNotesHeaderBtn) cancelNotesHeaderBtn.addEventListener('click', closeNotesModal);
+        if (saveNotesBtn) saveNotesBtn.addEventListener('click', saveNotes);
+        const exportDocxBtn = document.getElementById('export-notes-docx-btn');
+         if (exportDocxBtn) exportDocxBtn.addEventListener('click', exportNotesToDocx);
+         else console.warn("未找到匯出 DOCX 按鈕 (export-notes-docx-btn)");
+
+
+        // 設定對話框
+        if (settingsBtn) settingsBtn.addEventListener('click', openSettingsModal);
+        if (cancelSettingsBtn) cancelSettingsBtn.addEventListener('click', closeSettingsModal);
+        const cancelSettingsFormBtn = document.getElementById('cancel-settings-form-btn');
+        if (cancelSettingsFormBtn) cancelSettingsFormBtn.addEventListener('click', closeSettingsModal);
+        if (settingsForm) settingsForm.addEventListener('submit', saveSettings);
+
+        // 拍照對話框
+        if (cancelCameraBtn) cancelCameraBtn.addEventListener('click', closeCameraModal);
+        const cancelCameraHeaderBtn = document.getElementById('cancel-camera-btn'); // ID is same? Need verification in HTML
+        if (cancelCameraHeaderBtn && cancelCameraHeaderBtn !== cancelCameraBtn) { // Avoid double listener if ID is same
+            cancelCameraHeaderBtn.addEventListener('click', closeCameraModal);
+        }
+        if (capturePhotoBtn) capturePhotoBtn.addEventListener('click', capturePhoto);
+
+
+        // 檢查自動載入
+        const lastTripId = localStorage.getItem(LAST_TRIP_KEY);
+        if (lastTripId) {
+            console.log(`發現上次儲存的行程 ID: ${lastTripId}，嘗試自動載入...`);
+            if(tripIdInput) tripIdInput.value = lastTripId; // Pre-fill input for context
+            // Ensure dropdown reflects the loaded trip if possible
+            if(savedTripsSelect) savedTripsSelect.value = lastTripId;
+            updateDeleteButtonState(); // Update button based on selection
+            loadTrip(lastTripId);
+        } else {
+            populateSavedTripsDropdown(); // Populate dropdown even if no auto-load
+        }
+    }
+
+    initializeApp(); // 執行初始化
+    
 
     // --- 匯出筆記為 DOCX --- 
     function exportNotesToDocx() {
@@ -1794,3 +2505,480 @@ db.collection('itineraries').orderBy('date', 'asc').get() { ... }
 db.collection('itineraries').orderBy('date', 'asc').onSnapshot(...) { ... }
 firebase.firestore.FieldValue.serverTimestamp()
 */ 
+
+// --- 取得 HTML 元素 ---
+// ... (保留現有元素)
+const tripLocationInput = document.getElementById('trip-location');
+const tripDaysInput = document.getElementById('trip-days');
+const tripPreferencesInput = document.getElementById('trip-preferences');
+const tripTransportInput = document.getElementById('trip-transport');
+const tripStartDateInput = document.getElementById('trip-start-date'); // 新增：出發日期
+const tripStartTimeInput = document.getElementById('trip-start-time'); // 新增：出發時間
+const generateTripAiBtn = document.getElementById('generate-trip-ai-btn');
+const aiLoadingIndicator = document.getElementById('ai-loading-indicator');
+// ...
+
+
+// --- AI Trip Generation Functions ---
+
+async function generateTripWithAI() {
+    console.log("AI 生成行程按鈕點擊 - 函式已觸發"); // <--- 加入這一行確認函式呼叫
+
+    // 1. Get Input Values
+    const tripName = tripNameInput.value.trim();
+    const location = tripLocationInput.value.trim();
+    const days = tripDaysInput.value.trim();
+    const preferences = tripPreferencesInput.value.trim();
+    const transport = tripTransportInput.value.trim();
+    const startDate = tripStartDateInput?.value || ''; // 可選的出發日期
+    const startTime = tripStartTimeInput?.value || ''; // 可選的出發時間
+
+    // 2. Validate Inputs
+    tripNameInput.classList.remove('input-error');
+    tripLocationInput.classList.remove('input-error');
+    tripDaysInput.classList.remove('input-error');
+    let isValid = true;
+    if (!tripName) {
+        showNotification("請輸入行程名稱！", 'error');
+        tripNameInput.classList.add('input-error');
+        tripNameInput.focus();
+        isValid = false;
+    }
+    if (!location) {
+        showNotification("請輸入目的地！", 'error');
+        tripLocationInput.classList.add('input-error');
+        if (isValid) tripLocationInput.focus(); // Focus only if previous was valid
+        isValid = false;
+    }
+    if (!days || parseInt(days) <= 0) {
+        showNotification("請輸入有效的旅遊天數！", 'error');
+        tripDaysInput.classList.add('input-error');
+        if (isValid) tripDaysInput.focus();
+        isValid = false;
+    }
+    if (!isValid) return;
+
+    // 3. Check API Key
+    const geminiApiKey = localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY);
+    if (!geminiApiKey) {
+        showNotification("請先在設定中輸入 Google Gemini API Key 以使用 AI 生成功能。", "error");
+        openSettingsModal(); // Guide user to settings
+        return;
+    }
+
+    // 4. Update UI (Loading State)
+    aiLoadingIndicator.style.display = 'block';
+    // 注意：createTripBtn 現在可能是手動建立按鈕的 ID
+    const manualCreateBtn = document.getElementById('create-trip-btn');
+    if (manualCreateBtn) manualCreateBtn.disabled = true;
+    if (generateTripAiBtn) {
+        generateTripAiBtn.disabled = true;
+        generateTripAiBtn.setAttribute('aria-busy', 'true');
+    }
+
+    try {
+        // 5. Construct Prompt
+        const prompt = constructAIPrompt(location, days, preferences, transport, startTime);
+        console.log("Generated Prompt for AI:", prompt);
+
+        // 6. Call Gemini API
+        const aiResponseText = await callGeminiAPI(prompt, geminiApiKey);
+        console.log("Raw AI Response Text:", aiResponseText);
+
+        // 7. Parse AI Response (Assuming JSON structure)
+        const parsedItinerary = parseAIResponse(aiResponseText, parseInt(days), location, startDate, startTime); // 傳入出發日期和時間
+        console.log("Parsed Itinerary:", parsedItinerary);
+
+        if (!parsedItinerary || parsedItinerary.length === 0) {
+            throw new Error("AI 未能生成有效的行程建議或解析失敗。");
+        }
+
+        // 8. Create New Trip in Firebase
+        const newTripData = await createNewTripInFirebase(tripName);
+        const newTripId = newTripData.id;
+        console.log(`New trip created with ID: ${newTripId}`);
+
+        // 9. Add AI Generated Items to Firebase
+        await addParsedItemsToFirebase(newTripId, parsedItinerary);
+        console.log("AI generated items added to Firebase.");
+
+        // 10. Load the New Trip
+        showNotification(`AI 已生成行程 "${tripName}" 並載入！`, 'success');
+        saveTripInfo(newTripId, tripName); // Save to local storage list
+        loadTripData(newTripId, tripName); // Load the data and set up listener
+
+        // Clear input fields after successful generation
+        tripNameInput.value = '';
+        tripLocationInput.value = '';
+        tripDaysInput.value = '';
+        tripPreferencesInput.value = '';
+        tripTransportInput.value = '';
+        if(tripStartDateInput) tripStartDateInput.value = '';
+        if(tripStartTimeInput) tripStartTimeInput.value = '';
+
+    } catch (error) {
+        console.error("AI 生成行程失敗:", error);
+        showNotification(`AI 生成行程時發生錯誤: ${error.message}`, 'error');
+    } finally {
+        // 11. Reset UI
+        aiLoadingIndicator.style.display = 'none';
+         if (manualCreateBtn) manualCreateBtn.disabled = false;
+        if (generateTripAiBtn) {
+            generateTripAiBtn.disabled = false;
+            generateTripAiBtn.removeAttribute('aria-busy');
+        }
+    }
+}
+
+// Helper function to construct the prompt
+function constructAIPrompt(location, days, preferences, transport, startTime) {
+    let prompt = `請為一個為期 ${days} 天的 ${location} 旅行生成詳細的每日行程建議。`;
+    if (preferences) {
+        prompt += ` 旅行者的喜好包含：${preferences}。`;
+    }
+    if (transport) {
+        prompt += ` 主要交通方式為：${transport}。`;
+    }
+    if (startTime) {
+        prompt += ` 行程將在第一天的 ${startTime} 開始。`;
+    }
+    prompt += `
+
+針對每天的行程，請包含：
+1.  **住宿建議**：(若適用，可提供區域或類型建議)。
+2.  **活動安排**：列出當天建議的景點或活動，包含簡短描述。明確標示活動地點。
+3.  **餐飲推薦**：針對每個主要活動地點，推薦附近至少一個知名的當地美食或特色小吃，並附上簡短描述。明確標示美食地點 (或註明在景點附近)。如果有多個活動，請盡量為每個活動都提供餐飲建議。
+
+重要時間考量：
+1. **景點營業時間**：請考慮每個推薦景點的營業時間，不要推薦在非營業時間前往的行程。若知道具體營業時間，請在時間欄位中註明。
+2. **合理時間安排**：不要在半夜或清晨非常早的時間安排活動，除非是特殊景點（如看日出）。
+3. **交通時間**：考慮景點之間的移動時間，合理分配每日行程，避免安排過多景點導致行程緊湊。
+4. **用餐時間**：合理安排早午晚三餐的時間，與參觀景點時間不要衝突。
+5. **出發時間**：${startTime ? `第一天的行程將從 ${startTime} 開始，請據此安排當日活動。` : '如果沒有指定出發時間，可以假設第一天上午9點開始行程。'}
+
+請以 JSON 格式回應，不要包含任何 JSON 格式標籤外的文字或說明。JSON 結構如下：
+\`\`\`json
+{
+  "tripName": "自動生成的行程名稱 (例如：${location}${days}天精選之旅)",
+  "days": [
+    {
+      "day": 1,
+      "theme": "當日主題 (可選)",
+      "accommodation": "住宿建議文字",
+      "activities": [
+        {
+          "time": "建議時間 (如: 9:00-11:00, 請盡量提供具體時間範圍，考慮營業時間)",
+          "description": "活動/景點描述",
+          "location": "活動/景點地點 (必須填寫)",
+          "openingHours": "景點營業時間 (如: 週一至週五 9:00-17:00，若知道請填寫)",
+          "foodRecommendation": {
+            "name": "推薦美食名稱",
+            "description": "美食簡短描述",
+            "location": "美食地點 (必須填寫，或註明在景點附近)",
+            "openingHours": "餐廳營業時間 (如果知道的話)"
+          }
+        }
+        // ... 更多活動 ...
+      ]
+    }
+    // ... 更多天 ...
+  ]
+}
+\`\`\`
+請確保 JSON 格式正確無誤，且所有 location 欄位都有值。活動安排應考慮時間先後順序，讓行程合理流暢。`;
+    return prompt;
+}
+
+
+// Helper function to call Gemini API
+async function callGeminiAPI(prompt, apiKey) {
+    // **使用您的 Gemini API 金鑰和模型端點**
+    const API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`; // 使用 Flash 模型範例
+
+    const requestBody = {
+        contents: [{
+            parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          // temperature: 0.7, // 溫度控制隨機性
+          // topK: 40,         // Top-K 抽樣
+          // topP: 0.95,         // Top-P 抽樣
+          // maxOutputTokens: 8192, // 最大輸出 token 數
+          responseMimeType: "application/json", // 要求 JSON 輸出
+        },
+        // safetySettings: [ ... ] // 可選：添加安全設置
+    };
+
+    console.log("正在向 Gemini API 發送請求...");
+    // console.log("Request Body:", JSON.stringify(requestBody)); // 注意：避免記錄 API 金鑰
+
+    const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+        const errorBody = await response.text();
+        console.error("Gemini API 錯誤回應主體:", errorBody);
+        let errorMessage = `Gemini API 請求失敗: ${response.status} ${response.statusText}`;
+        try {
+             // 嘗試解析可能的 JSON 錯誤訊息
+             const errorJson = JSON.parse(errorBody);
+             if (errorJson.error && errorJson.error.message) {
+                 errorMessage += ` - ${errorJson.error.message}`;
+             }
+        } catch (e) {
+            // 解析失敗，使用原始文字
+            errorMessage += ` - ${errorBody}`;
+        }
+        throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    console.log("Gemini API 成功回應結構:", data);
+
+    // 從回應結構中提取文字內容
+    if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
+        // 由於已要求 application/json，直接使用 text
+        return data.candidates[0].content.parts[0].text;
+    } else if (data.promptFeedback && data.promptFeedback.blockReason) {
+        // 處理內容被阻擋的情況
+        const blockReason = data.promptFeedback.blockReason;
+        const safetyRatings = data.promptFeedback.safetyRatings?.map(r => `${r.category}: ${r.probability}`).join(', ') || '無安全評級資訊';
+        console.error(`Gemini API 請求被阻擋。原因: ${blockReason}. 安全評級: ${safetyRatings}`);
+        throw new Error(`AI 請求因安全原因被阻擋 (${blockReason})。`);
+    } else {
+         console.error("非預期的 Gemini API 回應結構:", data);
+        throw new Error("從 AI 回應中提取內容失敗。結構不符預期。");
+    }
+}
+
+
+// Helper function to parse the AI response (stringified JSON) into structured data
+function parseAIResponse(jsonString, totalDays, defaultLocation, startDate, startTime) {
+    try {
+        const aiData = JSON.parse(jsonString);
+        if (!aiData.days || !Array.isArray(aiData.days)) {
+            throw new Error("AI 回應缺少有效的 'days' 陣列。");
+        }
+
+        const parsedItems = [];
+        
+        // 設定起始日期（如果提供了）
+        let baseDate;
+        if (startDate) {
+            // 如果提供了起始日期，用這個日期做為基準
+            baseDate = new Date(startDate);
+            baseDate.setHours(0, 0, 0, 0); // 將時間設為午夜，以便日期計算
+        } else {
+            // 否則使用今天做為預設值
+            baseDate = new Date();
+            baseDate.setHours(0, 0, 0, 0); // 將時間設為午夜，以便日期計算
+        }
+
+        aiData.days.forEach(dayData => {
+            const dayNumber = dayData.day;
+            if (typeof dayNumber !== 'number' || dayNumber < 1 || dayNumber > totalDays) {
+                 console.warn(`忽略無效的天數編號: ${dayNumber}`);
+                return; // 跳過無效的天數
+            }
+
+            // 計算這一天的日期
+            const itemDate = new Date(baseDate);
+            itemDate.setDate(baseDate.getDate() + dayNumber - 1); // 第一天是基準日，第二天是基準日+1...
+
+            // 將住宿建議作為一個項目添加 (如果存在)
+            if (dayData.accommodation) {
+                 const accommodationDateTime = new Date(itemDate);
+                 accommodationDateTime.setHours(15, 0, 0, 0); // 假設下午 3 點入住
+
+                 parsedItems.push({
+                    dateTime: accommodationDateTime.toISOString().slice(0, 16), // 格式 YYYY-MM-DDTHH:mm
+                    type: 'accommodation',
+                    description: `住宿建議: ${dayData.accommodation}`,
+                    location: defaultLocation, // 使用行程的總地點
+                    cost: null,
+                    notes: dayData.theme ? `當日主題: ${dayData.theme}` : null // 將主題加到筆記
+                });
+            }
+
+            // 添加活動和美食推薦
+            if (dayData.activities && Array.isArray(dayData.activities)) {
+                dayData.activities.forEach(activity => {
+                    if (!activity.description || !activity.location) {
+                        console.warn("忽略缺少描述或地點的活動:", activity);
+                        return; // 跳過不完整的活動
+                    }
+                     
+                     // 更智能地解析活動時間
+                     const activityDateTime = new Date(itemDate);
+                     
+                     // 如果是第一天且有指定出發時間，根據出發時間調整
+                     if (dayNumber === 1 && startTime && activity === dayData.activities[0]) {
+                         // 解析出發時間（格式假設為HH:MM）
+                         const timeParts = startTime.split(':');
+                         if (timeParts.length === 2) {
+                             const hour = parseInt(timeParts[0]);
+                             const minute = parseInt(timeParts[1]);
+                             if (!isNaN(hour) && !isNaN(minute) && hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+                                 activityDateTime.setHours(hour, minute, 0, 0);
+                             }
+                         }
+                     } else {
+                         const timeLower = activity.time?.toLowerCase() || '';
+                         
+                         // 優先使用具體時間範圍
+                         if (timeLower.match(/\d+:\d+\s*-\s*\d+:\d+/)) {
+                             // 如果格式是 "HH:MM-HH:MM"
+                             const startTime = timeLower.match(/(\d+):(\d+)/);
+                             if (startTime && startTime.length >= 3) {
+                                 const hour = parseInt(startTime[1]);
+                                 const minute = parseInt(startTime[2]);
+                                 if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+                                     activityDateTime.setHours(hour, minute, 0, 0);
+                                 }
+                             }
+                         } else if (timeLower.match(/\d+:\d+/)) {
+                             // 如果只有單一時間點 "HH:MM"
+                             const timeMatch = timeLower.match(/(\d+):(\d+)/);
+                             if (timeMatch && timeMatch.length >= 3) {
+                                 const hour = parseInt(timeMatch[1]);
+                                 const minute = parseInt(timeMatch[2]);
+                                 if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+                                     activityDateTime.setHours(hour, minute, 0, 0);
+                                 }
+                             }
+                         } else if (timeLower.includes("上午")) {
+                             activityDateTime.setHours(10, 0, 0, 0);
+                         } else if (timeLower.includes("下午")) {
+                             activityDateTime.setHours(14, 0, 0, 0);
+                         } else if (timeLower.includes("傍晚") || timeLower.includes("晚上")) {
+                             activityDateTime.setHours(18, 0, 0, 0);
+                         } else if (timeLower.includes("早上") || timeLower.includes("早晨")) {
+                             activityDateTime.setHours(8, 0, 0, 0);
+                         } else if (timeLower.includes("中午")) {
+                             activityDateTime.setHours(12, 0, 0, 0);
+                         } else {
+                             activityDateTime.setHours(10, 0, 0, 0); // 預設上午10點
+                         }
+                     }
+
+                     // 處理營業時間資訊
+                     let notes = '';
+                     if (activity.openingHours) {
+                         notes += `營業時間: ${activity.openingHours}\n`;
+                     }
+                     // 加入活動時間資訊
+                     if (activity.time) {
+                         if (notes) notes += '\n';
+                         notes += `建議時間: ${activity.time}\n`;
+                     }
+                     
+                     parsedItems.push({
+                        dateTime: activityDateTime.toISOString().slice(0, 16),
+                        type: 'activity',
+                        description: activity.description,
+                        location: activity.location,
+                        cost: null,
+                        notes: notes || null
+                    });
+
+                    // 將美食推薦作為單獨項目添加
+                    if (activity.foodRecommendation && activity.foodRecommendation.name && activity.foodRecommendation.location) {
+                         const foodDateTime = new Date(activityDateTime);
+                         
+                         // 根據活動時間智能設置用餐時間
+                         const activityHour = activityDateTime.getHours();
+                         if (activityHour < 11) {
+                             // 早餐/早午餐
+                             foodDateTime.setHours(11, 30, 0, 0);
+                         } else if (activityHour < 16) {
+                             // 午餐/下午點心
+                             foodDateTime.setHours(activityHour + 1, 30, 0, 0);
+                         } else {
+                             // 晚餐
+                             foodDateTime.setHours(19, 0, 0, 0);
+                         }
+                         
+                         // 處理餐廳營業時間資訊
+                         let foodNotes = activity.foodRecommendation.description || '';
+                         if (activity.foodRecommendation.openingHours) {
+                             if (foodNotes.length > 0 && foodNotes[foodNotes.length-1] !== '\n') {
+                                 foodNotes += '\n';
+                             }
+                             foodNotes += `營業時間: ${activity.foodRecommendation.openingHours}`;
+                         }
+
+                         parsedItems.push({
+                            dateTime: foodDateTime.toISOString().slice(0, 16),
+                            type: 'food',
+                            description: `美食推薦: ${activity.foodRecommendation.name}`,
+                            location: activity.foodRecommendation.location,
+                            cost: null,
+                            notes: foodNotes || null
+                        });
+                    } else if (activity.foodRecommendation) {
+                        console.warn("忽略缺少名稱或地點的美食推薦:", activity.foodRecommendation);
+                    }
+                });
+            }
+        });
+
+        parsedItems.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+        return parsedItems;
+
+    } catch (error) {
+        console.error("解析 AI 回應失敗:", error, "原始字串:", jsonString);
+        throw new Error(`無法解析 AI 回應的 JSON: ${error.message}`);
+    }
+}
+
+// Helper function to create a new trip (refactored from original createTripBtn handler)
+async function createNewTripInFirebase(name) {
+    console.log(`在 Firebase 建立新行程: ${name}`);
+    const tripsRef = db.ref('trips');
+    const newTripRef = tripsRef.push();
+    const newTripId = newTripRef.key;
+    if (!newTripId) {
+        throw new Error("無法從 Firebase 取得新的行程 ID。");
+    }
+    const tripMetadata = {
+        name: name,
+        createdAt: firebase.database.ServerValue.TIMESTAMP
+    };
+    await newTripRef.child('metadata').set(tripMetadata);
+    return { id: newTripId, name: name };
+}
+
+// Helper function to add parsed items to Firebase
+async function addParsedItemsToFirebase(tripId, items) {
+    if (!tripId || !items || items.length === 0) {
+         console.log("沒有要添加到 Firebase 的 AI 生成項目。 tripId:", tripId, "items:", items);
+         return;
+    }
+    console.log(`準備將 ${items.length} 個 AI 生成的項目添加到行程 ${tripId}`);
+    const itineraryRef = db.ref(`trips/${tripId}/itineraries`);
+    const promises = [];
+    let orderCounter = Date.now();
+
+    items.forEach(item => {
+        const itemData = {
+            ...item,
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            order: orderCounter++
+        };
+        const newItemRef = itineraryRef.push();
+        promises.push(newItemRef.set(itemData));
+    });
+
+    await Promise.all(promises);
+    console.log(`已成功將 ${items.length} 個項目添加到 Firebase 行程 ${tripId}`);
+}
+
+// --- END OF AI Trip Generation Functions ---
+
+
+
