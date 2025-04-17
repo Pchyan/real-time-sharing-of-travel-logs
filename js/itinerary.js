@@ -347,6 +347,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if(currentTripNameSpan) currentTripNameSpan.textContent = tripName;
         console.log(`目前作用中: ${tripName} (${activeTripId})`);
 
+        // *** 新增：呼叫 displayTripInfo 來更新行程資訊卡 ***
+        displayTripInfo(tripId, { name: tripName });
+
         try {
             localStorage.setItem(LAST_TRIP_KEY, activeTripId);
             console.log(`已將 ${activeTripId} 儲存到 localStorage (${LAST_TRIP_KEY})`);
@@ -366,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function clearCurrentTripDisplay() {
-         activeTripId = null;
+        activeTripId = null;
         if(currentTripIdSpan) currentTripIdSpan.textContent = '尚未載入';
         if(currentTripNameSpan) currentTripNameSpan.textContent = '';
         if(itineraryContentDiv) itineraryContentDiv.style.display = 'none';
@@ -375,11 +378,11 @@ document.addEventListener('DOMContentLoaded', () => {
          qrCodeContainer.innerHTML = '';
          qrCodeContainer.style.display = 'none';
         }
-         if (itineraryListenerRef) {
+        if (itineraryListenerRef) {
             itineraryListenerRef.off('value');
             itineraryListenerRef = null;
             console.log("已移除行程監聽器 (clear display)");
-         }
+        }
         if(itineraryList) itineraryList.innerHTML = '';
         if(document.getElementById('total-cost-display')) document.getElementById('total-cost-display').textContent = '--'; // Reset total cost
     }
@@ -523,6 +526,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add listeners (moved to initializeApp)
 
     // --- 行程項目相關 ---
+    let currentItineraryItemsData = []; // 新增：儲存當前行程數據
+
     function setupItineraryListener(tripId) {
         if (itineraryListenerRef) {
             itineraryListenerRef.off('value');
@@ -540,7 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         itineraryListenerRef.on('value', (snapshot) => {
             console.log("行程項目資料更新 (來自 Realtime DB)");
-            if (!itineraryList) return; // Add null check
+            if (!itineraryList) return; 
             itineraryList.innerHTML = '';
             const itemsArray = [];
 
@@ -549,20 +554,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     itemsArray.push({ key: childSnapshot.key, data: childSnapshot.val() });
                 });
 
+                 // *** 新增：更新全局變數 ***
+                 currentItineraryItemsData = itemsArray;
+                 console.log("currentItineraryItemsData updated:", currentItineraryItemsData);
+
                 // Render items
                 itemsArray.forEach((itemObj, index) => {
                     renderItineraryItem(itemObj.key, itemObj.data, index, itemsArray);
                 });
 
-                calculateTotalCost(); // Update total cost after rendering
+                calculateTotalCost(); 
 
-                // Initialize SortableJS
+                // Initialize SortableJS (邏輯不變)
                 if (!sortableInstance && typeof Sortable !== 'undefined') {
                     sortableInstance = new Sortable(itineraryList, {
                         animation: 150,
                         ghostClass: 'sortable-ghost',
                         chosenClass: 'sortable-chosen',
-                        handle: '.drag-handle', // Use handle for dragging
+                        handle: '.drag-handle', 
                         onEnd: updateOrderAfterSort,
                     });
                     console.log("SortableJS 初始化完成。");
@@ -570,12 +579,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.warn("Sortable library is not loaded.");
                 }
             } else {
+                 currentItineraryItemsData = []; // 清空數據
                 itineraryList.innerHTML = '<li>此行程尚無項目，快來新增吧！</li>';
                 if (sortableInstance) {
                     sortableInstance.destroy();
                     sortableInstance = null;
                 }
-                 calculateTotalCost(); // Reset total cost if list is empty
+                 calculateTotalCost(); 
             }
         }, (error) => {
             console.error(`監聽 trips/${tripId}/itineraries 時發生錯誤: `, error);
@@ -609,8 +619,39 @@ document.addEventListener('DOMContentLoaded', () => {
         contentDiv.appendChild(typeBadge);
 
         // Text Span
-                    const textSpan = document.createElement('span');
-        const displayDateTime = item.dateTime ? new Date(item.dateTime).toLocaleString('zh-TW', { dateStyle: 'short', timeStyle: 'short' }) : '未定時間';
+        const textSpan = document.createElement('span');
+        let displayDateTime = '未定時間';
+        if (item.dateTime && typeof item.dateTime === 'string' && item.dateTime.includes('T')) {
+            try {
+                const [datePart, timePart] = item.dateTime.split('T');
+                const dateObj = new Date(datePart + 'T00:00:00'); // Create Date object just for formatting date
+                const formattedDate = dateObj.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                
+                // Format time part manually or with Date object (less reliable for formatting HH:MM)
+                const [hour, minute] = timePart.split(':');
+                // Basic AM/PM formatting
+                let period = '上午';
+                let displayHour = parseInt(hour);
+                if (displayHour === 0) {
+                    displayHour = 12;
+                    period = '上午'; // Midnight
+                } else if (displayHour === 12) {
+                    period = '下午'; // Noon
+                } else if (displayHour > 12) {
+                    displayHour -= 12;
+                    period = '下午';
+                }
+                const formattedTime = `${period} ${String(displayHour).padStart(2, ' ')}:${minute}`; // Pad hour with space for alignment if needed
+
+                displayDateTime = `${formattedDate} ${formattedTime} (當地時間)`;
+            } catch (e) {
+                console.warn(`Error formatting dateTime string ${item.dateTime}:`, e);
+                displayDateTime = `${item.dateTime} (格式錯誤)`; // Show raw string on error
+            }
+        } else if (item.dateTime) {
+            displayDateTime = `${item.dateTime} (格式未知)`; // Handle cases where dateTime might exist but not in expected format
+        }
+        
         let itemText = `<strong>${displayDateTime}</strong> - ${item.description || '未描述'}`;
         if (item.location) itemText += ` <small>@ ${item.location}</small>`;
         if (item.cost && typeof item.cost === 'number') itemText += ` <strong class="item-cost">(約 $${item.cost.toFixed(2)})</strong>`;
@@ -621,6 +662,27 @@ document.addEventListener('DOMContentLoaded', () => {
         // Button Group
                     const buttonGroup = document.createElement('div');
         buttonGroup.className = 'item-actions';
+
+                    // *** 新增：AI 建議按鈕 ***
+                    const suggestBtn = document.createElement('button');
+                    suggestBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>';
+                    suggestBtn.title = 'AI 建議下個地點';
+                    suggestBtn.classList.add('secondary', 'outline', 'small');
+                    suggestBtn.addEventListener('click', (e) => {
+                        // 暫存按鈕狀態並顯示 loading
+                        const originalHtml = suggestBtn.innerHTML;
+                        const targetButton = e.currentTarget; // 確保操作的是被點擊的按鈕
+                        targetButton.disabled = true;
+                        targetButton.innerHTML = '<span class="pico-loading" aria-busy="true"></span>'; 
+                        
+                        handleSuggestNextStop(key)
+                            .finally(() => {
+                                // 無論成功或失敗，恢復按鈕狀態
+                                targetButton.disabled = false;
+                                targetButton.innerHTML = originalHtml;
+                            });
+                    });
+                    buttonGroup.appendChild(suggestBtn);
 
                     const notesBtn = document.createElement('button');
                     notesBtn.innerHTML = '<i class="fa-solid fa-note-sticky"></i>';
@@ -685,31 +747,95 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function updateOrderAfterSort() {
-        if (!activeTripId || !itineraryList) return;
+    function updateOrderAfterSort(evt) { // evt 參數由 SortableJS 提供
+        if (!activeTripId || !itineraryList || !currentItineraryItemsData || currentItineraryItemsData.length === 0) return;
+
+        console.log("SortableJS onEnd event triggered");
 
         const items = itineraryList.querySelectorAll('li[data-id]');
-        if (items.length === 0) return;
+        if (items.length !== currentItineraryItemsData.length) {
+            console.error("DOM item count does not match data count. Aborting update.");
+            showNotification("更新順序時發生內部錯誤，請稍後再試。", "error");
+            // 可能需要強制重新渲染或提醒使用者
+            return;
+        }
 
         const updates = {};
-        items.forEach((item, index) => {
-            const itemId = item.getAttribute('data-id');
-            if (itemId) {
-                updates[`/trips/${activeTripId}/itineraries/${itemId}/order`] = index;
+        const DEFAULT_INTERVAL_MS = 90 * 60 * 1000; // 90 分鐘
+        let previousDateTime = null;
+
+        // 建立一個快速查找 item data 的 Map
+        const itemDataMap = new Map(currentItineraryItemsData.map(item => [item.key, item.data]));
+
+        console.log("Starting order and time update calculation...");
+
+        items.forEach((itemElement, index) => {
+            const itemId = itemElement.getAttribute('data-id');
+            if (!itemId) {
+                console.warn(`Found list item without data-id at index ${index}. Skipping.`);
+                return; // 跳過沒有 ID 的元素
+            }
+
+            const currentItemData = itemDataMap.get(itemId);
+            if (!currentItemData) {
+                console.warn(`Data for item ${itemId} not found in itemDataMap. Skipping.`);
+                return; // 跳過數據丟失的項目
+            }
+
+            // 1. 更新 Order
+            updates[`/trips/${activeTripId}/itineraries/${itemId}/order`] = index;
+            console.log(`  - Item ${itemId} (Index ${index}): Setting order to ${index}`);
+
+            // 2. 更新時間 (從第二個項目開始)
+            if (index === 0) {
+                // 第一個項目，時間不變，但記錄其時間作為下一個的基準
+                previousDateTime = currentItemData.dateTime ? new Date(currentItemData.dateTime) : null;
+                if (!previousDateTime) {
+                    console.warn(`First item ${itemId} is missing dateTime. Subsequent times may be incorrect.`);
+                    // 如果第一個項目沒有時間，可以考慮設個預設值或拋出錯誤
+                    // 這裡暫時允許 previousDateTime 為 null
+                }
+                console.log(`  - First item ${itemId}: Time remains ${currentItemData.dateTime}. Recorded as base.`);
+            } else {
+                // 後續項目
+                if (previousDateTime) {
+                    const newDateTime = new Date(previousDateTime.getTime() + DEFAULT_INTERVAL_MS);
+                    const newDateTimeString = newDateTime.toISOString().slice(0, 16); 
+
+                    // 只有當計算出的新時間與原始時間不同時才更新
+                    if (newDateTimeString !== currentItemData.dateTime) {
+                        updates[`/trips/${activeTripId}/itineraries/${itemId}/dateTime`] = newDateTimeString;
+                        console.log(`  - Item ${itemId}: Updating time from ${currentItemData.dateTime} to ${newDateTimeString}`);
+                    } else {
+                         console.log(`  - Item ${itemId}: Calculated time ${newDateTimeString} is same as original. No time update needed.`);
+                    }
+                    // 更新 previousDateTime 以供下一次迭代使用
+                    previousDateTime = newDateTime;
+                } else {
+                    // 如果前一個項目沒有時間，則無法計算當前時間
+                    console.warn(`  - Item ${itemId}: Previous item had no dateTime. Cannot calculate new time.`);
+                     // 保持其原始時間？或者也設為 null？保持原始時間可能較好
+                     previousDateTime = currentItemData.dateTime ? new Date(currentItemData.dateTime) : null; // 嘗試使用自己的時間做基準
+                }
             }
         });
 
-        console.log("準備更新 order:", updates);
-        incrementPendingWrites();
-        db.ref().update(updates)
-            .then(() => {
-                console.log("行程項目順序更新成功。");
-                // No need for notification, UI updates automatically
-            })
-            .catch((error) => {
-                console.error("更新行程項目順序時發生錯誤: ", error);
-                showNotification("儲存順序失敗。", 'error');
-            });
+        // 執行批量更新
+        if (Object.keys(updates).length > 0) {
+            console.log("準備更新 order 和 dateTime:", updates);
+            incrementPendingWrites();
+            db.ref().update(updates)
+                .then(() => {
+                    console.log("行程項目順序和時間更新成功。");
+                    showNotification("行程順序和時間已更新", "success", 2000); // 縮短成功提示時間
+                })
+                .catch((error) => {
+                    console.error("更新行程項目順序或時間時發生錯誤: ", error);
+                    showNotification("儲存順序或時間失敗。", 'error');
+                });
+        } else {
+            console.log("No order or time changes detected to update.");
+        }
     }
 
     function editItineraryItem(itemId) {
@@ -1548,53 +1674,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (transport) {
             prompt += ` 主要交通方式為：${transport}。`;
         }
+        // 強調出發時間
         if (startTime) {
-            prompt += ` 行程將在第一天的 ${startTime} 開始。`;
+            prompt += ` **重要：行程必須在第一天的 ${startTime} 準時開始。**`;
+        } else {
+            prompt += ` 預設第一天從上午 9:00 開始。`;
         }
-        prompt += `
-
-針對每天的行程，請包含：
-1.  **住宿建議**：(若適用，可提供區域或類型建議)。
-2.  **活動安排**：列出當天建議的景點或活動，包含簡短描述。明確標示活動地點。
-3.  **餐飲推薦**：針對每個主要活動地點，推薦附近至少一個知名的當地美食或特色小吃，並附上簡短描述。明確標示美食地點 (或註明在景點附近)。如果有多個活動，請盡量為每個活動都提供餐飲建議。
-
-重要時間考量：
-1. **景點營業時間**：請考慮每個推薦景點的營業時間，不要推薦在非營業時間前往的行程。若知道具體營業時間，請在時間欄位中註明。
-2. **合理時間安排**：不要在半夜或清晨非常早的時間安排活動，除非是特殊景點（如看日出）。
-3. **交通時間**：考慮景點之間的移動時間，合理分配每日行程，避免安排過多景點導致行程緊湊。
-4. **用餐時間**：合理安排早午晚三餐的時間，與參觀景點時間不要衝突。
-5. **出發時間**：${startTime ? `第一天的行程將從 ${startTime} 開始，請據此安排當日活動。` : '如果沒有指定出發時間，可以假設第一天上午9點開始行程。'}
-
-請以 JSON 格式回應，不要包含任何 JSON 格式標籤外的文字或說明。JSON 結構如下：
-\`\`\`json
-{
-  "tripName": "自動生成的行程名稱 (例如：${location}${days}天精選之旅)",
-  "days": [
-    {
-      "day": 1,
-      "theme": "當日主題 (可選)",
-      "accommodation": "住宿建議文字",
-      "activities": [
-        {
-          "time": "建議時間 (如: 9:00-11:00, 請盡量提供具體時間範圍，考慮營業時間)",
-          "description": "活動/景點描述",
-          "location": "活動/景點地點 (必須填寫)",
-          "openingHours": "景點營業時間 (如: 週一至週五 9:00-17:00，若知道請填寫)",
-          "foodRecommendation": {
-            "name": "推薦美食名稱",
-            "description": "美食簡短描述",
-            "location": "美食地點 (必須填寫，或註明在景點附近)",
-            "openingHours": "餐廳營業時間 (如果知道的話)"
-          }
-        }
-        // ... 更多活動 ...
-      ]
-    }
-    // ... 更多天 ...
-  ]
-}
-\`\`\`
-請確保 JSON 格式正確無誤，且所有 location 欄位都有值。活動安排應考慮時間先後順序，讓行程合理流暢。`;
+        prompt += `\n\n針對每天的行程，請包含：\n1.  **住宿建議**：(若適用，可提供區域或類型建議)。\n2.  **活動安排**：列出當天建議的景點或活動，包含簡短描述。明確標示活動地點。\n3.  **餐飲推薦**：針對每個主要活動地點，推薦附近至少一個知名的當地美食或特色小吃，並附上簡短描述。明確標示美食地點 (或註明在景點附近)。如果有多個活動，請盡量為每個活動都提供餐飲建議。\n\n**極重要時間考量 (務必遵循):**\n1. **景點營業時間**：請**務必**查詢並考慮每個推薦景點的**實際營業時間**，不要推薦在非營業時間前往的行程。在 \`openingHours\` 欄位註明營業時間。\n2. **合理時間安排**：不要在半夜 (00:00-06:00) 安排活動，除非是特殊景點（如看日出）。活動之間需預留合理的交通和緩衝時間。\n3. **用餐時間**：合理安排早午晚三餐的時間，與參觀景點時間不要衝突。\n4. **出發時間**：${startTime ? `**第一天的第一個活動必須安排在 ${startTime} 開始。** 後續活動依次安排。` : '第一天行程從上午 9:00 開始。'}\n\n請以 JSON 格式回應，不要包含任何 JSON 格式標籤外的文字或說明。JSON 結構如下：\n\`\`\`json\n{\n  \"tripName\": \"自動生成的行程名稱 (例如：${location}${days}天精選之旅)\",\n  \"days\": [\n    {\n      \"day\": 1,\n      \"theme\": \"當日主題 (可選)\",\n      \"accommodation\": \"住宿建議文字\",\n      \"activities\": [\n        {\n          \"time\": \"建議時間 (如: 9:00-11:00 或 14:00，必須符合營業時間和出發時間要求)\",\n          \"description\": \"活動/景點描述\",\n          \"location\": \"活動/景點地點 (必須填寫)\",\n          \"openingHours\": \"景點營業時間 (如: 週一至週五 9:00-17:00，盡力提供)\",\n          \"foodRecommendation\": {\n            \"name\": \"推薦美食名稱\",\n            \"description\": \"美食簡短描述\",\n            \"location\": \"美食地點 (必須填寫，或註明在景點附近)\",\n            \"openingHours\": \"餐廳營業時間 (如果知道的話)\"\n          }\n        }\n        // ... 更多活動 ...\n      ]\n    }\n    // ... 更多天 ...\n  ]\n}\n\`\`\`\n請確保 JSON 格式正確無誤，所有 location 欄位都有值，並且**嚴格遵守上述時間考量**。活動安排應考慮時間先後順序，讓行程合理流暢。`;
         return prompt;
     }
 
@@ -1662,6 +1748,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
+    // **修改：不再修改 Date 物件，僅解析並回傳 HH:MM 字串**
+    function parseAndReturnTimeString(timeString) {
+        const timeLower = timeString?.toLowerCase() || '';
+        let hour = 10, minute = 0; // Default time
+
+        const rangeMatch = timeLower.match(/(\d+):(\d+)\s*-\s*\d+:\d+/);
+        const specificMatch = timeLower.match(/(\d+):(\d+)/);
+
+        if (rangeMatch && rangeMatch.length >= 3) {
+            // Use the start time of the range
+            hour = parseInt(rangeMatch[1]);
+            minute = parseInt(rangeMatch[2]);
+        } else if (specificMatch && specificMatch.length >= 3) {
+            // Use the specific time
+            hour = parseInt(specificMatch[1]);
+            minute = parseInt(specificMatch[2]);
+        } else if (timeLower.includes("上午")) {
+            hour = 10; minute = 0;
+        } else if (timeLower.includes("下午")) {
+            hour = 14; minute = 0;
+        } else if (timeLower.includes("傍晚") || timeLower.includes("晚上")) {
+            hour = 18; minute = 0;
+        } else if (timeLower.includes("早上") || timeLower.includes("早晨")) {
+            hour = 8; minute = 0;
+        } else if (timeLower.includes("中午")) {
+            hour = 12; minute = 0;
+        } else {
+            console.warn(`無法解析 AI 提供的時間 '${timeString}'，使用預設 10:00`);
+        }
+
+        // Validate parsed hours and minutes
+        if (isNaN(hour) || hour < 0 || hour >= 24) hour = 10;
+        if (isNaN(minute) || minute < 0 || minute >= 60) minute = 0;
+
+        // Format to HH:MM string
+        const formattedHour = String(hour).padStart(2, '0');
+        const formattedMinute = String(minute).padStart(2, '0');
+        return `${formattedHour}:${formattedMinute}`;
+    }
+
     // Helper function to parse the AI response (stringified JSON) into structured data
     function parseAIResponse(jsonString, totalDays, defaultLocation, startDate, startTime) {
         try {
@@ -1673,117 +1799,89 @@ document.addEventListener('DOMContentLoaded', () => {
             const parsedItems = [];
             
             // 設定起始日期（如果提供了）
-            let baseDate;
+            let baseDateObj;
             if (startDate) {
-                // 如果提供了起始日期，用這個日期做為基準
-                baseDate = new Date(startDate);
-                baseDate.setHours(0, 0, 0, 0); // 將時間設為午夜，以便日期計算
-        } else {
-                // 否則使用今天做為預設值
-                baseDate = new Date();
-                baseDate.setHours(0, 0, 0, 0); // 將時間設為午夜，以便日期計算
+                // Try to parse YYYY-MM-DD or other formats robustly
+                baseDateObj = new Date(startDate + 'T00:00:00'); // Assume local if no tz
+                if (isNaN(baseDateObj.getTime())) { // Check if parsing failed
+                    console.warn("無法解析提供的 startDate，使用今天日期");
+                    baseDateObj = new Date();
+                }
+            } else {
+                baseDateObj = new Date();
             }
+            baseDateObj.setHours(0, 0, 0, 0);
+
+            // Helper to format Date object to YYYY-MM-DD
+            const formatDate = (dateObj) => dateObj.toISOString().slice(0, 10);
 
             aiData.days.forEach(dayData => {
                 const dayNumber = dayData.day;
                 if (typeof dayNumber !== 'number' || dayNumber < 1 || dayNumber > totalDays) {
-                     console.warn(`忽略無效的天數編號: ${dayNumber}`);
-                    return; // 跳過無效的天數
+                    console.warn(`忽略無效的天數編號: ${dayNumber}`);
+                    return; 
                 }
 
-                // 計算這一天的日期
-                const itemDate = new Date(baseDate);
-                itemDate.setDate(baseDate.getDate() + dayNumber - 1); // 第一天是基準日，第二天是基準日+1...
+                const currentDayDateObj = new Date(baseDateObj);
+                currentDayDateObj.setDate(baseDateObj.getDate() + dayNumber - 1); 
+                const currentDayDateStr = formatDate(currentDayDateObj);
 
-                // 將住宿建議作為一個項目添加 (如果存在)
                 if (dayData.accommodation) {
-                     const accommodationDateTime = new Date(itemDate);
-                     accommodationDateTime.setHours(15, 0, 0, 0); // 假設下午 3 點入住
-
+                     // 住宿通常是當天下午入住，時間相對固定
+                     const accommodationTimeStr = "15:00"; 
                      parsedItems.push({
-                        dateTime: accommodationDateTime.toISOString().slice(0, 16), // 格式 YYYY-MM-DDTHH:mm
+                        dateTime: `${currentDayDateStr}T${accommodationTimeStr}`,
                         type: 'accommodation',
                         description: `住宿建議: ${dayData.accommodation}`,
-                        location: defaultLocation, // 使用行程的總地點
+                        location: defaultLocation, 
                         cost: null,
-                        notes: dayData.theme ? `當日主題: ${dayData.theme}` : null // 將主題加到筆記
+                        notes: dayData.theme ? `當日主題: ${dayData.theme}` : null 
                     });
                 }
 
-                // 添加活動和美食推薦
                 if (dayData.activities && Array.isArray(dayData.activities)) {
-                    dayData.activities.forEach(activity => {
+                    dayData.activities.forEach((activity, activityIndex) => {
                         if (!activity.description || !activity.location) {
                             console.warn("忽略缺少描述或地點的活動:", activity);
-                            return; // 跳過不完整的活動
+                            return; 
                         }
-                        
-                         // 更智能地解析活動時間
-                         const activityDateTime = new Date(itemDate);
                          
-                         // 如果是第一天且有指定出發時間，根據出發時間調整
-                         if (dayNumber === 1 && startTime && activity === dayData.activities[0]) {
-                             // 解析出發時間（格式假設為HH:MM）
+                         let activityTimeStr = "10:00"; // Default time if parsing fails
+
+                         // **修改：強制第一天第一個活動使用 startTime**
+                         if (dayNumber === 1 && activityIndex === 0 && startTime) { 
                              const timeParts = startTime.split(':');
                              if (timeParts.length === 2) {
                                  const hour = parseInt(timeParts[0]);
                                  const minute = parseInt(timeParts[1]);
                                  if (!isNaN(hour) && !isNaN(minute) && hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
-                                     activityDateTime.setHours(hour, minute, 0, 0);
+                                     activityTimeStr = startTime; // Use user's valid HH:MM directly
+                                     console.log(`強制設定第一天第一個活動時間為使用者指定的: ${activityTimeStr}`);
+                                 } else {
+                                     console.warn(`解析使用者提供的 startTime (${startTime}) 失敗，將使用 AI 建議時間或預設值。`);
+                                     activityTimeStr = parseAndReturnTimeString(activity.time); 
                                  }
+                             } else {
+                                  console.warn(`使用者提供的 startTime (${startTime}) 格式不符 (HH:MM)，將使用 AI 建議時間或預設值。`);
+                                  activityTimeStr = parseAndReturnTimeString(activity.time);
                              }
                          } else {
-                             const timeLower = activity.time?.toLowerCase() || '';
-                             
-                             // 優先使用具體時間範圍
-                             if (timeLower.match(/\d+:\d+\s*-\s*\d+:\d+/)) {
-                                 // 如果格式是 "HH:MM-HH:MM"
-                                 const startTime = timeLower.match(/(\d+):(\d+)/);
-                                 if (startTime && startTime.length >= 3) {
-                                     const hour = parseInt(startTime[1]);
-                                     const minute = parseInt(startTime[2]);
-                                     if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
-                                         activityDateTime.setHours(hour, minute, 0, 0);
-                                     }
-                                 }
-                             } else if (timeLower.match(/\d+:\d+/)) {
-                                 // 如果只有單一時間點 "HH:MM"
-                                 const timeMatch = timeLower.match(/(\d+):(\d+)/);
-                                 if (timeMatch && timeMatch.length >= 3) {
-                                     const hour = parseInt(timeMatch[1]);
-                                     const minute = parseInt(timeMatch[2]);
-                                     if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
-                                         activityDateTime.setHours(hour, minute, 0, 0);
-                                     }
-                                 }
-                             } else if (timeLower.includes("上午")) {
-                                 activityDateTime.setHours(10, 0, 0, 0);
-                             } else if (timeLower.includes("下午")) {
-                                 activityDateTime.setHours(14, 0, 0, 0);
-                             } else if (timeLower.includes("傍晚") || timeLower.includes("晚上")) {
-                                 activityDateTime.setHours(18, 0, 0, 0);
-                             } else if (timeLower.includes("早上") || timeLower.includes("早晨")) {
-                                 activityDateTime.setHours(8, 0, 0, 0);
-                             } else if (timeLower.includes("中午")) {
-                                 activityDateTime.setHours(12, 0, 0, 0);
-                             } else {
-                                 activityDateTime.setHours(10, 0, 0, 0); // 預設上午10點
-                             }
+                             // 對於其他活動，或第一天沒有指定 startTime 的情況，解析 AI 提供的時間
+                             activityTimeStr = parseAndReturnTimeString(activity.time);
                          }
 
-                         // 處理營業時間資訊
                          let notes = '';
                          if (activity.openingHours) {
                              notes += `營業時間: ${activity.openingHours}\n`;
                          }
-                         // 加入活動時間資訊
+                         // 記錄 AI 原始建議的時間，方便 debug
                          if (activity.time) {
                              if (notes) notes += '\n';
-                             notes += `建議時間: ${activity.time}\n`;
+                             notes += `AI 建議時間: ${activity.time}\n`; 
                          }
                          
                          parsedItems.push({
-                            dateTime: activityDateTime.toISOString().slice(0, 16),
+                            dateTime: `${currentDayDateStr}T${activityTimeStr}`,
                             type: 'activity',
                             description: activity.description,
                             location: activity.location,
@@ -1791,24 +1889,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             notes: notes || null
                         });
 
-                        // 將美食推薦作為單獨項目添加
+                        // 處理 foodRecommendation
                         if (activity.foodRecommendation && activity.foodRecommendation.name && activity.foodRecommendation.location) {
-                             const foodDateTime = new Date(activityDateTime);
-                             
-                             // 根據活動時間智能設置用餐時間
-                             const activityHour = activityDateTime.getHours();
-                             if (activityHour < 11) {
-                                 // 早餐/早午餐
-                                 foodDateTime.setHours(11, 30, 0, 0);
-                             } else if (activityHour < 16) {
-                                 // 午餐/下午點心
-                                 foodDateTime.setHours(activityHour + 1, 30, 0, 0);
-                             } else {
-                                 // 晚餐
-                                 foodDateTime.setHours(19, 0, 0, 0);
+                             // 估算用餐時間 - 這裡仍需 Date 物件輔助計算小時
+                             let foodTimeStr = "12:00"; // Default lunch time
+                             const activityHour = parseInt(activityTimeStr.split(':')[0]);
+                             if (!isNaN(activityHour)) {
+                                 if (activityHour < 11) {
+                                     foodTimeStr = "11:30";
+                                 } else if (activityHour < 16) {
+                                     // Rough check if it's close to previous activity
+                                     foodTimeStr = `${String(activityHour + 1).padStart(2, '0')}:30`;
+                                 } else {
+                                     foodTimeStr = "19:00";
+                                 }
                              }
                              
-                             // 處理餐廳營業時間資訊
                              let foodNotes = activity.foodRecommendation.description || '';
                              if (activity.foodRecommendation.openingHours) {
                                  if (foodNotes.length > 0 && foodNotes[foodNotes.length-1] !== '\n') {
@@ -1818,7 +1914,7 @@ document.addEventListener('DOMContentLoaded', () => {
                              }
 
                              parsedItems.push({
-                                dateTime: foodDateTime.toISOString().slice(0, 16),
+                                dateTime: `${currentDayDateStr}T${foodTimeStr}`,
                                 type: 'food',
                                 description: `美食推薦: ${activity.foodRecommendation.name}`,
                                 location: activity.foodRecommendation.location,
@@ -1832,7 +1928,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            parsedItems.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+            // Sort by dateTime string (YYYY-MM-DDTHH:MM) - should be mostly correct chronologically
+            parsedItems.sort((a, b) => a.dateTime.localeCompare(b.dateTime)); 
             return parsedItems;
 
         } catch (error) {
@@ -1840,6 +1937,9 @@ document.addEventListener('DOMContentLoaded', () => {
             throw new Error(`無法解析 AI 回應的 JSON: ${error.message}`);
         }
     }
+
+    // **移除舊的輔助函式：解析 AI 提供的時間並修改 Date 物件** 
+    // function parseAndSetAIProvidedTime(dateTimeObject, timeString) { ... } 
 
     // Helper function to create a new trip (refactored from original createTripBtn handler)
     async function createNewTripInFirebase(name) {
@@ -2494,491 +2594,309 @@ document.addEventListener('DOMContentLoaded', () => {
             removeSavedTrip(selectedTripId);
         }
     }
-});
 
-// --- Firestore 版本的函式 (已不再使用，保留供參考) ---
-/*
-function loadItineraryItems() { ... }
-function setupFirestoreRealtimeListener() { ... }
-db.collection('itineraries').add(newItem) { ... }
-db.collection('itineraries').orderBy('date', 'asc').get() { ... }
-db.collection('itineraries').orderBy('date', 'asc').onSnapshot(...) { ... }
-firebase.firestore.FieldValue.serverTimestamp()
-*/ 
+    // --- AI 建議下一個行程點相關函式 ---
 
-// --- 取得 HTML 元素 ---
-// ... (保留現有元素)
-const tripLocationInput = document.getElementById('trip-location');
-const tripDaysInput = document.getElementById('trip-days');
-const tripPreferencesInput = document.getElementById('trip-preferences');
-const tripTransportInput = document.getElementById('trip-transport');
-const tripStartDateInput = document.getElementById('trip-start-date'); // 新增：出發日期
-const tripStartTimeInput = document.getElementById('trip-start-time'); // 新增：出發時間
-const generateTripAiBtn = document.getElementById('generate-trip-ai-btn');
-const aiLoadingIndicator = document.getElementById('ai-loading-indicator');
-// ...
-
-
-// --- AI Trip Generation Functions ---
-
-async function generateTripWithAI() {
-    console.log("AI 生成行程按鈕點擊 - 函式已觸發"); // <--- 加入這一行確認函式呼叫
-
-    // 1. Get Input Values
-    const tripName = tripNameInput.value.trim();
-    const location = tripLocationInput.value.trim();
-    const days = tripDaysInput.value.trim();
-    const preferences = tripPreferencesInput.value.trim();
-    const transport = tripTransportInput.value.trim();
-    const startDate = tripStartDateInput?.value || ''; // 可選的出發日期
-    const startTime = tripStartTimeInput?.value || ''; // 可選的出發時間
-
-    // 2. Validate Inputs
-    tripNameInput.classList.remove('input-error');
-    tripLocationInput.classList.remove('input-error');
-    tripDaysInput.classList.remove('input-error');
-    let isValid = true;
-    if (!tripName) {
-        showNotification("請輸入行程名稱！", 'error');
-        tripNameInput.classList.add('input-error');
-        tripNameInput.focus();
-        isValid = false;
-    }
-    if (!location) {
-        showNotification("請輸入目的地！", 'error');
-        tripLocationInput.classList.add('input-error');
-        if (isValid) tripLocationInput.focus(); // Focus only if previous was valid
-        isValid = false;
-    }
-    if (!days || parseInt(days) <= 0) {
-        showNotification("請輸入有效的旅遊天數！", 'error');
-        tripDaysInput.classList.add('input-error');
-        if (isValid) tripDaysInput.focus();
-        isValid = false;
-    }
-    if (!isValid) return;
-
-    // 3. Check API Key
-    const geminiApiKey = localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY);
-    if (!geminiApiKey) {
-        showNotification("請先在設定中輸入 Google Gemini API Key 以使用 AI 生成功能。", "error");
-        openSettingsModal(); // Guide user to settings
-        return;
-    }
-
-    // 4. Update UI (Loading State)
-    aiLoadingIndicator.style.display = 'block';
-    // 注意：createTripBtn 現在可能是手動建立按鈕的 ID
-    const manualCreateBtn = document.getElementById('create-trip-btn');
-    if (manualCreateBtn) manualCreateBtn.disabled = true;
-    if (generateTripAiBtn) {
-        generateTripAiBtn.disabled = true;
-        generateTripAiBtn.setAttribute('aria-busy', 'true');
-    }
-
-    try {
-        // 5. Construct Prompt
-        const prompt = constructAIPrompt(location, days, preferences, transport, startTime);
-        console.log("Generated Prompt for AI:", prompt);
-
-        // 6. Call Gemini API
-        const aiResponseText = await callGeminiAPI(prompt, geminiApiKey);
-        console.log("Raw AI Response Text:", aiResponseText);
-
-        // 7. Parse AI Response (Assuming JSON structure)
-        const parsedItinerary = parseAIResponse(aiResponseText, parseInt(days), location, startDate, startTime); // 傳入出發日期和時間
-        console.log("Parsed Itinerary:", parsedItinerary);
-
-        if (!parsedItinerary || parsedItinerary.length === 0) {
-            throw new Error("AI 未能生成有效的行程建議或解析失敗。");
+    // 主處理函式
+    async function handleSuggestNextStop(currentItemKey) {
+        console.log(`請求 AI 建議 ${currentItemKey} 的下一個行程點`);
+        if (!activeTripId) {
+            showNotification("錯誤：沒有作用中的行程", "error");
+            return; // Added return
         }
 
-        // 8. Create New Trip in Firebase
-        const newTripData = await createNewTripInFirebase(tripName);
-        const newTripId = newTripData.id;
-        console.log(`New trip created with ID: ${newTripId}`);
-
-        // 9. Add AI Generated Items to Firebase
-        await addParsedItemsToFirebase(newTripId, parsedItinerary);
-        console.log("AI generated items added to Firebase.");
-
-        // 10. Load the New Trip
-        showNotification(`AI 已生成行程 "${tripName}" 並載入！`, 'success');
-        saveTripInfo(newTripId, tripName); // Save to local storage list
-        loadTripData(newTripId, tripName); // Load the data and set up listener
-
-        // Clear input fields after successful generation
-        tripNameInput.value = '';
-        tripLocationInput.value = '';
-        tripDaysInput.value = '';
-        tripPreferencesInput.value = '';
-        tripTransportInput.value = '';
-        if(tripStartDateInput) tripStartDateInput.value = '';
-        if(tripStartTimeInput) tripStartTimeInput.value = '';
-
-    } catch (error) {
-        console.error("AI 生成行程失敗:", error);
-        showNotification(`AI 生成行程時發生錯誤: ${error.message}`, 'error');
-    } finally {
-        // 11. Reset UI
-        aiLoadingIndicator.style.display = 'none';
-         if (manualCreateBtn) manualCreateBtn.disabled = false;
-        if (generateTripAiBtn) {
-            generateTripAiBtn.disabled = false;
-            generateTripAiBtn.removeAttribute('aria-busy');
+        const geminiApiKey = localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY);
+        if (!geminiApiKey) {
+            showNotification("請先在設定中輸入 Google Gemini API Key", "error");
+            openSettingsModal();
+            return; // Added return
         }
-    }
-}
 
-// Helper function to construct the prompt
-function constructAIPrompt(location, days, preferences, transport, startTime) {
-    let prompt = `請為一個為期 ${days} 天的 ${location} 旅行生成詳細的每日行程建議。`;
-    if (preferences) {
-        prompt += ` 旅行者的喜好包含：${preferences}。`;
-    }
-    if (transport) {
-        prompt += ` 主要交通方式為：${transport}。`;
-    }
-    if (startTime) {
-        prompt += ` 行程將在第一天的 ${startTime} 開始。`;
-    }
-    prompt += `
+        try {
+            // 1. 獲取當前項目資料
+            const currentItemRef = db.ref(`trips/${activeTripId}/itineraries/${currentItemKey}`);
+            const snapshot = await currentItemRef.get();
+            if (!snapshot.exists()) {
+                throw new Error("找不到當前的行程項目資料");
+            }
+            const currentItemData = snapshot.val();
 
-針對每天的行程，請包含：
-1.  **住宿建議**：(若適用，可提供區域或類型建議)。
-2.  **活動安排**：列出當天建議的景點或活動，包含簡短描述。明確標示活動地點。
-3.  **餐飲推薦**：針對每個主要活動地點，推薦附近至少一個知名的當地美食或特色小吃，並附上簡短描述。明確標示美食地點 (或註明在景點附近)。如果有多個活動，請盡量為每個活動都提供餐飲建議。
+            if (!currentItemData.location || !currentItemData.dateTime) {
+                 showNotification("目前項目缺少地點或時間資訊，無法提供建議。", "warning");
+                 return;
+            }
 
-重要時間考量：
-1. **景點營業時間**：請考慮每個推薦景點的營業時間，不要推薦在非營業時間前往的行程。若知道具體營業時間，請在時間欄位中註明。
-2. **合理時間安排**：不要在半夜或清晨非常早的時間安排活動，除非是特殊景點（如看日出）。
-3. **交通時間**：考慮景點之間的移動時間，合理分配每日行程，避免安排過多景點導致行程緊湊。
-4. **用餐時間**：合理安排早午晚三餐的時間，與參觀景點時間不要衝突。
-5. **出發時間**：${startTime ? `第一天的行程將從 ${startTime} 開始，請據此安排當日活動。` : '如果沒有指定出發時間，可以假設第一天上午9點開始行程。'}
+            // 2. 建構提示
+            const prompt = constructSuggestNextPrompt(currentItemData);
+            console.log("Suggest Next Stop Prompt:", prompt);
 
-請以 JSON 格式回應，不要包含任何 JSON 格式標籤外的文字或說明。JSON 結構如下：
+            // 3. 呼叫 API
+            const aiResponseText = await callGeminiAPI(prompt, geminiApiKey);
+            console.log("Suggest Next Stop Raw Response:", aiResponseText);
+
+            // 4. 解析回應
+            const baseDate = new Date(currentItemData.dateTime);
+            const suggestedItemData = parseSuggestedItem(aiResponseText, baseDate);
+            console.log("Parsed Suggested Item:", suggestedItemData);
+
+            if (!suggestedItemData) { // Check if parsing returned null
+                throw new Error("AI 回應無法解析或缺少必要資訊。")
+            }
+
+            // 5. 插入新項目
+            await insertSuggestedItem(currentItemKey, suggestedItemData);
+
+            showNotification("AI 已建議並插入下一個行程點！", "success");
+
+        } catch (error) {
+            console.error("AI 建議下一個行程點時發生錯誤:", error);
+            showNotification(`AI 建議失敗: ${error.message}`, "error");
+        }
+        // loading 狀態的解除已移至 renderItineraryItem 的 finally 區塊
+    }
+
+    // 建構 AI 提示
+    function constructSuggestNextPrompt(currentItemData) {
+        const currentLocation = currentItemData.location;
+        const currentEndTime = new Date(currentItemData.dateTime); // 假設 dateTime 是開始時間
+        // 估算一個合理的結束時間（例如，活動持續2小時，可以根據類型調整）
+        // 這裡簡化處理，只基於 dateTime 往後推
+        const suggestedStartTime = new Date(currentEndTime.getTime() + 90 * 60000); // 預設 1.5 小時後
+        const suggestedStartTimeStr = suggestedStartTime.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+        let prompt = `我目前在 ${currentLocation}，剛完成一個活動，時間大約是 ${currentEndTime.toLocaleString('zh-TW')}。
+請根據以下條件，建議下一個合理的行程點：
+
+1.  **地點相關性**：建議的地點應該在 ${currentLocation} 附近，或是前往下一個可能目的地的路途上。
+2.  **時間合理性**：建議活動的開始時間應在 ${suggestedStartTimeStr} 之後，並考慮可能的交通時間。
+3.  **類型多樣性**：如果可能，建議不同於目前活動類型的行程（例如，活動後推薦餐廳，或交通後推薦景點）。
+4.  **營業時間**：請考慮建議地點的營業時間。
+5.  **避免重複**：盡量不要建議完全相同的地點。
+
+請只用 JSON 格式回應一個建議的行程項目，不要包含任何 JSON 以外的文字或說明。結構如下：
 \`\`\`json
 {
-  "tripName": "自動生成的行程名稱 (例如：${location}${days}天精選之旅)",
-  "days": [
-    {
-      "day": 1,
-      "theme": "當日主題 (可選)",
-      "accommodation": "住宿建議文字",
-      "activities": [
-        {
-          "time": "建議時間 (如: 9:00-11:00, 請盡量提供具體時間範圍，考慮營業時間)",
-          "description": "活動/景點描述",
-          "location": "活動/景點地點 (必須填寫)",
-          "openingHours": "景點營業時間 (如: 週一至週五 9:00-17:00，若知道請填寫)",
-          "foodRecommendation": {
-            "name": "推薦美食名稱",
-            "description": "美食簡短描述",
-            "location": "美食地點 (必須填寫，或註明在景點附近)",
-            "openingHours": "餐廳營業時間 (如果知道的話)"
-          }
-        }
-        // ... 更多活動 ...
-      ]
-    }
-    // ... 更多天 ...
-  ]
+  "time": "建議開始時間 (例如 ${suggestedStartTimeStr} 或 14:30)",
+  "type": "行程類型 (transport/accommodation/activity/food/other)",
+  "description": "活動/景點/餐廳描述",
+  "location": "建議的地點 (必須填寫)",
+  "openingHours": "營業時間 (如果知道的話)",
+  "notes": "其他備註 (可選，例如交通方式建議)"
 }
 \`\`\`
-請確保 JSON 格式正確無誤，且所有 location 欄位都有值。活動安排應考慮時間先後順序，讓行程合理流暢。`;
-    return prompt;
-}
+請確保 JSON 格式正確且 location 有值。`;
+        return prompt;
+    }
 
-
-// Helper function to call Gemini API
-async function callGeminiAPI(prompt, apiKey) {
-    // **使用您的 Gemini API 金鑰和模型端點**
-    const API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`; // 使用 Flash 模型範例
-
-    const requestBody = {
-        contents: [{
-            parts: [{ text: prompt }]
-        }],
-        generationConfig: {
-          // temperature: 0.7, // 溫度控制隨機性
-          // topK: 40,         // Top-K 抽樣
-          // topP: 0.95,         // Top-P 抽樣
-          // maxOutputTokens: 8192, // 最大輸出 token 數
-          responseMimeType: "application/json", // 要求 JSON 輸出
-        },
-        // safetySettings: [ ... ] // 可選：添加安全設置
-    };
-
-    console.log("正在向 Gemini API 發送請求...");
-    // console.log("Request Body:", JSON.stringify(requestBody)); // 注意：避免記錄 API 金鑰
-
-    const response = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-        const errorBody = await response.text();
-        console.error("Gemini API 錯誤回應主體:", errorBody);
-        let errorMessage = `Gemini API 請求失敗: ${response.status} ${response.statusText}`;
+    // 解析 AI 回應 (單個項目)
+    function parseSuggestedItem(jsonString, baseDate) {
+        console.log("Raw AI Suggestion String:", jsonString); // 增加日誌：顯示原始字串
         try {
-             // 嘗試解析可能的 JSON 錯誤訊息
-             const errorJson = JSON.parse(errorBody);
-             if (errorJson.error && errorJson.error.message) {
-                 errorMessage += ` - ${errorJson.error.message}`;
-             }
-        } catch (e) {
-            // 解析失敗，使用原始文字
-            errorMessage += ` - ${errorBody}`;
+            let suggestion = null;
+            const parsedData = JSON.parse(jsonString);
+            console.log("Parsed AI Data:", parsedData); // 增加日誌：顯示解析後的物件
+
+            // **修改：處理 AI 可能返回陣列的情況**
+            if (Array.isArray(parsedData) && parsedData.length === 1) {
+                suggestion = parsedData[0];
+                console.log("AI returned an array, using the first element:", suggestion);
+            } else if (typeof parsedData === 'object' && parsedData !== null && !Array.isArray(parsedData)) {
+                 // 如果是單一物件
+                suggestion = parsedData;
+                console.log("AI returned a single object:", suggestion);
+            } else {
+                 // 無法識別的格式
+                 console.error("AI response is not a single object or a single-element array.", parsedData);
+                 return null;
+            }
+
+            // 基本驗證 (現在對 suggestion 操作)
+            if (!suggestion || !suggestion.description || !suggestion.location || !suggestion.type) {
+                console.error("AI 建議缺少必要欄位 (description, location, type) 或 suggestion 為 null:", suggestion);
+                return null; // 返回 null 表示解析失敗
+            }
+
+            // 處理時間 (邏輯保持不變，但基於 suggestion)
+            const newItemDateTime = new Date(baseDate); 
+            let timeParsed = false;
+            if (suggestion.time) {
+                const timeLower = suggestion.time.toLowerCase();
+                const timeMatch = timeLower.match(/(\d+):(\d+)/);
+                if (timeMatch && timeMatch.length >= 3) {
+                    const hour = parseInt(timeMatch[1]);
+                    const minute = parseInt(timeMatch[2]);
+                    if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+                        const potentialTime = new Date(baseDate);
+                        potentialTime.setHours(hour, minute, 0, 0);
+                        if (potentialTime > baseDate) {
+                             newItemDateTime.setHours(hour, minute, 0, 0);
+                             timeParsed = true;
+                        } else {
+                             newItemDateTime.setDate(newItemDateTime.getDate() + 1);
+                             newItemDateTime.setHours(hour, minute, 0, 0);
+                             timeParsed = true;
+                             console.log("AI 建議時間早於基準，已自動加一天");
+                        }
+                    }
+                }
+            }
+            
+            if (!timeParsed) {
+                 newItemDateTime.setTime(baseDate.getTime() + 90 * 60000); 
+                 console.log("AI 未提供有效時間，自動設定為 1.5 小時後");
+            }
+
+            // 組合筆記 (邏輯保持不變，但基於 suggestion)
+            let notes = suggestion.notes || '';
+            if (suggestion.openingHours) {
+                if (notes) notes += '\n';
+                notes += `營業時間: ${suggestion.openingHours}`;
+            }
+            if (suggestion.time && timeParsed) { 
+                if (notes) notes += '\n';
+                 notes += `AI建議時間: ${suggestion.time}`;
+            }
+
+            // 構建最終項目資料 (邏輯保持不變，但基於 suggestion)
+            const newItemData = {
+                dateTime: newItemDateTime.toISOString().slice(0, 16),
+                type: suggestion.type,
+                description: suggestion.description,
+                location: suggestion.location,
+                cost: null, 
+                notes: notes || null,
+                createdAt: firebase.database.ServerValue.TIMESTAMP
+            };
+
+            return newItemData;
+
+        } catch (error) {
+            console.error("解析 AI 建議失敗:", error, "原始字串:", jsonString);
+            return null;
         }
-        throw new Error(errorMessage);
     }
 
-    const data = await response.json();
-    console.log("Gemini API 成功回應結構:", data);
-
-    // 從回應結構中提取文字內容
-    if (data.candidates && data.candidates.length > 0 && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.length > 0) {
-        // 由於已要求 application/json，直接使用 text
-        return data.candidates[0].content.parts[0].text;
-    } else if (data.promptFeedback && data.promptFeedback.blockReason) {
-        // 處理內容被阻擋的情況
-        const blockReason = data.promptFeedback.blockReason;
-        const safetyRatings = data.promptFeedback.safetyRatings?.map(r => `${r.category}: ${r.probability}`).join(', ') || '無安全評級資訊';
-        console.error(`Gemini API 請求被阻擋。原因: ${blockReason}. 安全評級: ${safetyRatings}`);
-        throw new Error(`AI 請求因安全原因被阻擋 (${blockReason})。`);
-    } else {
-         console.error("非預期的 Gemini API 回應結構:", data);
-        throw new Error("從 AI 回應中提取內容失敗。結構不符預期。");
-    }
-}
-
-
-// Helper function to parse the AI response (stringified JSON) into structured data
-function parseAIResponse(jsonString, totalDays, defaultLocation, startDate, startTime) {
-    try {
-        const aiData = JSON.parse(jsonString);
-        if (!aiData.days || !Array.isArray(aiData.days)) {
-            throw new Error("AI 回應缺少有效的 'days' 陣列。");
+    // 插入建議的項目到 Firebase
+    async function insertSuggestedItem(currentItemKey, newItemData) {
+        if (!activeTripId || !newItemData) {
+            console.error("缺少行程 ID 或新項目資料，無法插入");
+            return;
         }
 
-        const parsedItems = [];
+        const itineraryRef = db.ref(`trips/${activeTripId}/itineraries`);
+
+        // --- 決定新項目的 Order --- 
+        // 為了簡化，我們先使用時間戳作為 Order，或者比 currentItemOrder 稍大一點的值。
+        // 獲取當前項目的 order
+        const currentItemSnapshot = await itineraryRef.child(currentItemKey).child('order').get();
+        const currentOrder = currentItemSnapshot.val() || Date.now(); // 如果沒 order，用當前時間
         
-        // 設定起始日期（如果提供了）
-        let baseDate;
-        if (startDate) {
-            // 如果提供了起始日期，用這個日期做為基準
-            baseDate = new Date(startDate);
-            baseDate.setHours(0, 0, 0, 0); // 將時間設為午夜，以便日期計算
-        } else {
-            // 否則使用今天做為預設值
-            baseDate = new Date();
-            baseDate.setHours(0, 0, 0, 0); // 將時間設為午夜，以便日期計算
+        // 新項目的 order 設為當前 order + 1 (或其他小增量)
+        // 這依賴於 orderByChild('order') 的監聽器來正確排序顯示
+        newItemData.order = currentOrder + 1; 
+        
+        console.log(`準備插入新項目，Order 設定為: ${newItemData.order}`);
+
+        // --- 推送新項目 --- 
+        incrementPendingWrites(); // 離線時增加計數
+        const newItemRef = itineraryRef.push(); // 先產生 key
+        await newItemRef.set(newItemData); // 再設定包含 order 的完整資料
+
+        console.log(`已成功插入 AI 建議的項目，Key: ${newItemRef.key}`);
+    }
+
+    // --- END OF AI 建議相關函式 ---
+
+    // ... (initializeApp 和其他現有函式) ...
+
+    // Function to generate and display the QR code for sharing
+    function displayShareQRCode(tripId) {
+        const qrCodeDisplay = document.getElementById('qrcode-display-share');
+        if (!qrCodeDisplay) {
+            console.error("QR Code display area ('qrcode-display-share') not found.");
+            showNotification('無法顯示 QR Code，找不到顯示區域。', 'error');
+            return;
         }
 
-        aiData.days.forEach(dayData => {
-            const dayNumber = dayData.day;
-            if (typeof dayNumber !== 'number' || dayNumber < 1 || dayNumber > totalDays) {
-                 console.warn(`忽略無效的天數編號: ${dayNumber}`);
-                return; // 跳過無效的天數
+        // Clear previous QR code if any
+        qrCodeDisplay.innerHTML = '';
+        qrCodeDisplay.style.display = 'block'; // Make the area visible
+
+        try {
+            // Ensure QRCode library is loaded
+            if (typeof QRCode === 'undefined') {
+                console.error('QRCode library is not loaded.');
+                showNotification('QR Code 功能無法使用，請檢查頁面是否正確載入。', 'error');
+                qrCodeDisplay.style.display = 'none';
+                return;
             }
 
-            // 計算這一天的日期
-            const itemDate = new Date(baseDate);
-            itemDate.setDate(baseDate.getDate() + dayNumber - 1); // 第一天是基準日，第二天是基準日+1...
+            new QRCode(qrCodeDisplay, {
+                text: tripId,
+                width: 128,
+                height: 128,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+            console.log(`Generated QR code for trip ID: ${tripId}`);
+        } catch (error) {
+            console.error("Error generating QR Code: ", error);
+            showNotification('產生 QR Code 時發生錯誤。', 'error');
+            qrCodeDisplay.style.display = 'none'; // Hide the area on error
+            qrCodeDisplay.innerHTML = '<p>無法產生 QR Code。</p>'; // Show error message
+        }
+    }
 
-            // 將住宿建議作為一個項目添加 (如果存在)
-            if (dayData.accommodation) {
-                 const accommodationDateTime = new Date(itemDate);
-                 accommodationDateTime.setHours(15, 0, 0, 0); // 假設下午 3 點入住
+    // --- 地圖初始化與行程顯示 ---
+    async function displayTripInfo(tripId, tripData) {
+        console.log(`Displaying trip info for: ${tripId}`);
+        // *** 修改：使用 HTML 中正確的 ID ***
+        const tripInfoDiv = document.getElementById('current-trip-card'); // Use current-trip-card
+        const tripTitle = document.getElementById('current-trip-name');   // Use current-trip-name
+        const tripIdDisplay = document.getElementById('current-trip-id'); // Use current-trip-id
+        const shareQrButton = document.getElementById('share-qr-button');
+        const qrCodeDisplay = document.getElementById('qrcode-display-share');
 
-                 parsedItems.push({
-                    dateTime: accommodationDateTime.toISOString().slice(0, 16), // 格式 YYYY-MM-DDTHH:mm
-                    type: 'accommodation',
-                    description: `住宿建議: ${dayData.accommodation}`,
-                    location: defaultLocation, // 使用行程的總地點
-                    cost: null,
-                    notes: dayData.theme ? `當日主題: ${dayData.theme}` : null // 將主題加到筆記
-                });
-            }
+        if (!tripInfoDiv || !tripTitle || !tripIdDisplay || !shareQrButton || !qrCodeDisplay) {
+            console.error('Required trip info display elements not found.');
+            showNotification('無法顯示行程資訊，缺少必要的頁面元素。', 'error');
+            return;
+        }
 
-            // 添加活動和美食推薦
-            if (dayData.activities && Array.isArray(dayData.activities)) {
-                dayData.activities.forEach(activity => {
-                    if (!activity.description || !activity.location) {
-                        console.warn("忽略缺少描述或地點的活動:", activity);
-                        return; // 跳過不完整的活動
-                    }
-                     
-                     // 更智能地解析活動時間
-                     const activityDateTime = new Date(itemDate);
-                     
-                     // 如果是第一天且有指定出發時間，根據出發時間調整
-                     if (dayNumber === 1 && startTime && activity === dayData.activities[0]) {
-                         // 解析出發時間（格式假設為HH:MM）
-                         const timeParts = startTime.split(':');
-                         if (timeParts.length === 2) {
-                             const hour = parseInt(timeParts[0]);
-                             const minute = parseInt(timeParts[1]);
-                             if (!isNaN(hour) && !isNaN(minute) && hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
-                                 activityDateTime.setHours(hour, minute, 0, 0);
-                             }
-                         }
-                     } else {
-                         const timeLower = activity.time?.toLowerCase() || '';
-                         
-                         // 優先使用具體時間範圍
-                         if (timeLower.match(/\d+:\d+\s*-\s*\d+:\d+/)) {
-                             // 如果格式是 "HH:MM-HH:MM"
-                             const startTime = timeLower.match(/(\d+):(\d+)/);
-                             if (startTime && startTime.length >= 3) {
-                                 const hour = parseInt(startTime[1]);
-                                 const minute = parseInt(startTime[2]);
-                                 if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
-                                     activityDateTime.setHours(hour, minute, 0, 0);
-                                 }
-                             }
-                         } else if (timeLower.match(/\d+:\d+/)) {
-                             // 如果只有單一時間點 "HH:MM"
-                             const timeMatch = timeLower.match(/(\d+):(\d+)/);
-                             if (timeMatch && timeMatch.length >= 3) {
-                                 const hour = parseInt(timeMatch[1]);
-                                 const minute = parseInt(timeMatch[2]);
-                                 if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
-                                     activityDateTime.setHours(hour, minute, 0, 0);
-                                 }
-                             }
-                         } else if (timeLower.includes("上午")) {
-                             activityDateTime.setHours(10, 0, 0, 0);
-                         } else if (timeLower.includes("下午")) {
-                             activityDateTime.setHours(14, 0, 0, 0);
-                         } else if (timeLower.includes("傍晚") || timeLower.includes("晚上")) {
-                             activityDateTime.setHours(18, 0, 0, 0);
-                         } else if (timeLower.includes("早上") || timeLower.includes("早晨")) {
-                             activityDateTime.setHours(8, 0, 0, 0);
-                         } else if (timeLower.includes("中午")) {
-                             activityDateTime.setHours(12, 0, 0, 0);
-                         } else {
-                             activityDateTime.setHours(10, 0, 0, 0); // 預設上午10點
-                         }
-                     }
+        currentTripId = tripId; // 更新當前行程 ID
+        tripTitle.textContent = tripData.name || '未命名行程';
+        tripIdDisplay.textContent = tripId;
+        tripInfoDiv.style.display = 'block';
+        qrCodeDisplay.style.display = 'none'; // Hide QR code area initially
+        qrCodeDisplay.innerHTML = ''; // Clear any previous QR code
 
-                     // 處理營業時間資訊
-                     let notes = '';
-                     if (activity.openingHours) {
-                         notes += `營業時間: ${activity.openingHours}\n`;
-                     }
-                     // 加入活動時間資訊
-                     if (activity.time) {
-                         if (notes) notes += '\n';
-                         notes += `建議時間: ${activity.time}\n`;
-                     }
-                     
-                     parsedItems.push({
-                        dateTime: activityDateTime.toISOString().slice(0, 16),
-                        type: 'activity',
-                        description: activity.description,
-                        location: activity.location,
-                        cost: null,
-                        notes: notes || null
-                    });
+        // 移除舊的監聽器以防重複添加
+        const newShareButton = shareQrButton.cloneNode(true);
+        console.log('displayTripInfo: Cloned share button:', newShareButton);
+        shareQrButton.parentNode.replaceChild(newShareButton, shareQrButton);
 
-                    // 將美食推薦作為單獨項目添加
-                    if (activity.foodRecommendation && activity.foodRecommendation.name && activity.foodRecommendation.location) {
-                         const foodDateTime = new Date(activityDateTime);
-                         
-                         // 根據活動時間智能設置用餐時間
-                         const activityHour = activityDateTime.getHours();
-                         if (activityHour < 11) {
-                             // 早餐/早午餐
-                             foodDateTime.setHours(11, 30, 0, 0);
-                         } else if (activityHour < 16) {
-                             // 午餐/下午點心
-                             foodDateTime.setHours(activityHour + 1, 30, 0, 0);
-                         } else {
-                             // 晚餐
-                             foodDateTime.setHours(19, 0, 0, 0);
-                         }
-                         
-                         // 處理餐廳營業時間資訊
-                         let foodNotes = activity.foodRecommendation.description || '';
-                         if (activity.foodRecommendation.openingHours) {
-                             if (foodNotes.length > 0 && foodNotes[foodNotes.length-1] !== '\n') {
-                                 foodNotes += '\n';
-                             }
-                             foodNotes += `營業時間: ${activity.foodRecommendation.openingHours}`;
-                         }
+        // Enable the share button
+        console.log('displayTripInfo: Before enabling - disabled status:', newShareButton.disabled);
+        newShareButton.disabled = false;
+        console.log('displayTripInfo: After enabling - disabled status:', newShareButton.disabled);
 
-                         parsedItems.push({
-                            dateTime: foodDateTime.toISOString().slice(0, 16),
-                            type: 'food',
-                            description: `美食推薦: ${activity.foodRecommendation.name}`,
-                            location: activity.foodRecommendation.location,
-                            cost: null,
-                            notes: foodNotes || null
-                        });
-                    } else if (activity.foodRecommendation) {
-                        console.warn("忽略缺少名稱或地點的美食推薦:", activity.foodRecommendation);
-                    }
-                });
+        // Add event listener for the share button
+        newShareButton.addEventListener('click', () => {
+            if (currentTripId) {
+                displayShareQRCode(currentTripId);
+            } else {
+                showNotification('沒有可分享的行程 ID。', 'warning');
             }
         });
 
-        parsedItems.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
-        return parsedItems;
-
-    } catch (error) {
-        console.error("解析 AI 回應失敗:", error, "原始字串:", jsonString);
-        throw new Error(`無法解析 AI 回應的 JSON: ${error.message}`);
+        // Existing code for copy button...
+        const copyButton = document.getElementById('copy-trip-id');
+        if (copyButton) {
+            // ... (rest of the copy button logic)
+        }
     }
-}
-
-// Helper function to create a new trip (refactored from original createTripBtn handler)
-async function createNewTripInFirebase(name) {
-    console.log(`在 Firebase 建立新行程: ${name}`);
-    const tripsRef = db.ref('trips');
-    const newTripRef = tripsRef.push();
-    const newTripId = newTripRef.key;
-    if (!newTripId) {
-        throw new Error("無法從 Firebase 取得新的行程 ID。");
-    }
-    const tripMetadata = {
-        name: name,
-        createdAt: firebase.database.ServerValue.TIMESTAMP
-    };
-    await newTripRef.child('metadata').set(tripMetadata);
-    return { id: newTripId, name: name };
-}
-
-// Helper function to add parsed items to Firebase
-async function addParsedItemsToFirebase(tripId, items) {
-    if (!tripId || !items || items.length === 0) {
-         console.log("沒有要添加到 Firebase 的 AI 生成項目。 tripId:", tripId, "items:", items);
-         return;
-    }
-    console.log(`準備將 ${items.length} 個 AI 生成的項目添加到行程 ${tripId}`);
-    const itineraryRef = db.ref(`trips/${tripId}/itineraries`);
-    const promises = [];
-    let orderCounter = Date.now();
-
-    items.forEach(item => {
-        const itemData = {
-            ...item,
-            createdAt: firebase.database.ServerValue.TIMESTAMP,
-            order: orderCounter++
-        };
-        const newItemRef = itineraryRef.push();
-        promises.push(newItemRef.set(itemData));
-    });
-
-    await Promise.all(promises);
-    console.log(`已成功將 ${items.length} 個項目添加到 Firebase 行程 ${tripId}`);
-}
-
-// --- END OF AI Trip Generation Functions ---
+});
 
 
 

@@ -25,6 +25,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <!-- *** 新增：html-docx-js *** -->
     <script src="https://unpkg.com/html-docx-js@0.3.1/dist/html-docx.js"></script>
+    <!-- *** 新增：QR Code 產生函式庫 (用於顯示分享碼) *** -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <!-- 導航列 -->
@@ -50,6 +52,9 @@
                         <option value="blue">藍色主題</option>
                     </select>
                 </div>
+            </li>
+            <li>
+                <button id="settings-btn" class="secondary outline" title="設定 API Keys"><i class="fa-solid fa-gear"></i> 設定</button>
             </li>
         </ul>
     </nav>
@@ -126,17 +131,18 @@
                 </form>
             </article>
 
-            <!-- 載入與選擇已存行程 -->
+            <!-- 載入或管理行程 -->
             <article>
                 <header>載入或管理行程</header>
-                <div class="grid">
+
+                <div class="load-and-select-container">
                     <!-- 左欄：載入 ID -->
                     <div class="load-by-id">
                         <label for="trip-id-input">
                             <i class="fa-solid fa-arrow-right-to-bracket"></i> 載入行程 ID
                             <input type="text" id="trip-id-input" name="trip-id" placeholder="貼上行程 ID 或掃描 QR Code">
                         </label>
-                        <div class="grid">
+                        <div class="load-scan-buttons">
                              <button id="load-trip-btn" class="primary"><i class="fa-solid fa-check"></i> 載入</button>
                              <button type="button" id="scan-qr-btn" class="secondary outline" title="掃描 QR Code"><i class="fa-solid fa-qrcode"></i> 掃描</button>
                         </div>
@@ -152,9 +158,8 @@
                                 <option value="">-- 無已存行程 --</option>
                             </select>
                         </label>
-                        <div class="grid action-buttons">
+                        <div class="action-buttons">
                              <button id="delete-selected-trip-btn" class="secondary outline" disabled title="從此瀏覽器移除選擇的行程記錄"><i class="fa-solid fa-trash-can"></i> 移除列表記錄</button>
-                             <button id="settings-btn" class="secondary outline" title="設定 API Keys"><i class="fa-solid fa-gear"></i> 設定</button>
                         </div>
                     </div>
                 </div>
@@ -165,17 +170,21 @@
                 <header>
                     <i class="fa-solid fa-route"></i> 目前行程
                 </header>
-                <div class="grid">
+                <div class="trip-header-content">
                     <div>
                         <h3 id="current-trip-name" class="current-trip-title"></h3>
                         <p><small>ID: <code id="current-trip-id">尚未載入</code></small></p>
                     </div>
                     <div class="trip-actions">
-                        <button id="toggle-qrcode-btn" style="display: none;" class="secondary outline" title="顯示/隱藏 QR Code"><i class="fa-solid fa-qrcode"></i> 分享 ID</button>
+                        <!-- *** 修改：新增分享按鈕 *** -->
+                        <button id="copy-trip-id-btn" class="secondary outline" title="複製行程 ID" disabled><i class="fa-solid fa-copy"></i> 複製 ID</button>
+                        <button id="share-qr-button" class="secondary outline" title="以 QR Code 分享行程 ID" disabled><i class="fa-solid fa-qrcode"></i> 分享 QR</button>
                     </div>
                 </div>
                 <!-- QR Code 容器 -->
-                <div id="qrcode-container" style="display: none;" class="qrcode-display" aria-hidden="true"></div>
+                <div id="qrcode-display-share" style="display: none; padding-top: 1rem; text-align: center;" class="qrcode-display" aria-hidden="true">
+                    <!-- QR Code 會顯示在這裡 -->
+                </div>
                 <!-- 總預計花費 -->
                 <footer>
                     <div class="total-cost-section">
@@ -198,7 +207,7 @@
                     <!--<header>
                         <h2><i class="fa-solid fa-calendar-plus"></i> 新增行程項目</h2>
                     </header>-->
-                    <form id="itinerary-form" class="grid">
+                    <form id="itinerary-form">
                          <div>
                             <label for="item-date">
                                 <i class="fa-regular fa-calendar"></i> 日期與時間*
@@ -264,7 +273,7 @@
                 <a href="#close" aria-label="關閉" class="close" data-target="edit-item-modal"></a>
                 <h3><i class="fa-solid fa-pen-to-square"></i> 編輯行程項目</h3>
             </header>
-            <form id="edit-itinerary-form" class="grid">
+            <form id="edit-itinerary-form">
                 <!-- 隱藏欄位，用來儲存正在編輯的項目 ID -->
                 <input type="hidden" id="edit-item-id">
 
@@ -410,9 +419,6 @@
 
     <!-- Firebase 設定檔 -->
     <script src="js/firebase-config.js" defer></script>
-
-    <!-- QR Code 產生函式庫 -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 
     <!-- QR Code 掃描函式庫 -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>

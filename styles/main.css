@@ -360,6 +360,19 @@ dialog header a.close {
 
 :root, [data-theme="light"] {
     --pico-text-selection-color: rgba(24, 144, 255, 0.2);
+
+    /* QR Code 背景調整 for Light Theme */
+    .qrcode-display {
+        background-color: #e9ecef; /* Pico muted background */
+    }
+
+    /* --- 新增：調整淺色主題下的線上狀態對比度 --- */
+    #connection-status.online {
+        /* 假設背景 var(--pico-color-green-500) 已足夠，僅修改文字顏色 */
+        color: #212529; /* 深灰色文字，確保與預設綠色背景對比 */
+        /* 如果背景綠色太淺，可以取消註解下一行並選擇一個稍深的綠色 */
+        /* background-color: #198754; */
+    }
 }
 
 [data-theme="dark"] {
@@ -374,6 +387,17 @@ dialog header a.close {
     --pico-primary-inverse: #FFF;
     --pico-secondary-inverse: #FFF;
     --pico-contrast-inverse: #000;
+
+    /* --- 新增：明確定義深色主題下的線上狀態樣式 --- */
+    #connection-status.online {
+        background-color: #20c997; /* 較亮的綠色 */
+        color: white; /* 維持白色文字 */
+    }
+
+    /* QR Code 背景調整 for Dark Theme (之前誤放在 purple?) */
+    /* .qrcode-display {
+        background-color: var(--pico-contrast-background); /* 深色主題下應該用這個 */
+    /* } */
 
     .directions-link-container {
         border-left: 3px dashed rgba(255, 255, 255, 0.1);
@@ -399,6 +423,11 @@ dialog header a.close {
     --pico-primary-hover: #7120bc;
     --pico-primary-focus: rgba(138, 43, 226, 0.25);
     --pico-primary-inverse: #FFF;
+
+    /* QR Code 背景調整 for Purple Theme */
+    .qrcode-display {
+        background-color: #e9ecef; /* Pico muted background */
+    }
 
     .directions-link-container {
         border-left: 3px dashed rgba(138, 43, 226, 0.2);
@@ -429,6 +458,11 @@ dialog header a.close {
     --pico-primary-focus: rgba(8, 160, 69, 0.25);
     --pico-primary-inverse: #FFF;
 
+    /* QR Code 背景調整 for Green Theme */
+    .qrcode-display {
+        background-color: #e9ecef; /* Pico muted background */
+    }
+
     .directions-link-container {
         border-left: 3px dashed rgba(8, 160, 69, 0.2);
         border-right: 3px dashed rgba(8, 160, 69, 0.2);
@@ -458,6 +492,11 @@ dialog header a.close {
     --pico-primary-focus: rgba(2, 119, 189, 0.25);
     --pico-primary-inverse: #FFF;
 
+    /* QR Code 背景調整 for Blue Theme */
+    .qrcode-display {
+        background-color: #e9ecef; /* Pico muted background */
+    }
+
     .directions-link-container {
         border-left: 3px dashed rgba(2, 119, 189, 0.2);
         border-right: 3px dashed rgba(2, 119, 189, 0.2);
@@ -471,4 +510,238 @@ dialog header a.close {
     #connection-status.online {
         background-color: #0277bd;
     }
+}
+
+/* --- 表單優化 --- */
+form.grid {
+    gap: 1rem 1.5rem; /* 增加欄間距 */
+}
+
+form label {
+    margin-bottom: 0; /* 移除 Pico 預設的 label 下方間距，改用 grid gap */
+}
+
+form label i {
+    width: 1.2em; /* 給圖示一個固定寬度，幫助對齊 */
+    text-align: center;
+    margin-right: 0.4em;
+}
+
+/* 確保 input 和 select 垂直對齊 */
+input[type=\"text\"],
+input[type=\"number\"],
+input[type=\"password\"],
+input[type=\"date\"],
+input[type=\"time\"],
+input[type=\"datetime-local\"],
+select {
+    /* Pico 已處理大部分樣式，確保垂直對齊 */
+    vertical-align: middle;
+}
+
+/* 修正 datetime-local 的樣式 (可能需要針對特定瀏覽器) */
+input[type=\"datetime-local\"] {
+    /* 嘗試移除瀏覽器預設外觀，讓 Pico 接管更多 */
+    /* -webkit-appearance: none; */
+    /* appearance: none; */
+    /* Pico 應該已經設置了合適的高度和 padding，若仍有問題可取消註解以下行 */
+    /* min-height: calc(var(--pico-form-element-height) - calc(var(--pico-border-width) * 2)); */
+    /* display: inline-block; */ 
+}
+
+
+form label small {
+    display: block; 
+    margin-top: 0.25rem;
+    font-size: 0.875em;
+    color: var(--pico-secondary);
+    /* 圖示寬度 + 圖示右邊距 */
+    /* padding-left: calc(1.2em + 0.4em); */ /* 讓提示文字也縮排，可選 */
+}
+
+.grid-span-2 {
+    grid-column: span 2;
+}
+
+.add-item-button-container {
+    grid-column: span 2; 
+    text-align: right; 
+    margin-top: 0; /* 改由 grid gap 控制 */
+    /* 將按鈕垂直對齊到底部 */
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-end;
+}
+
+/* --- 行程管理區塊細化 --- */
+/* 載入與選擇區域佈局 */
+.load-by-id, .select-saved {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem; /* 減少內部元素間距 */
+}
+
+.load-by-id .grid, /* 按鈕組 */
+.select-saved .grid {
+    margin-top: 0.5rem; /* 與上方欄位保持一點距離 */
+    gap: 0.75rem; /* 按鈕間距 */
+}
+
+#loading-indicator {
+    display: flex; 
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.25rem; /* 減少與上方距離 */
+}
+#loading-indicator progress {
+     width: 25px; /* 再縮小一點 */
+     margin-bottom: 0;
+}
+
+.action-buttons button {
+    width: 100%; 
+}
+
+/* --- Quill 工具列修正 --- */
+.ql-toolbar {
+    padding: 6px 8px !important; /* 稍微減少 padding */
+    gap: 3px 6px !important; /* 同時調整行、列間距 */
+    border-bottom: 1px solid var(--pico-form-element-border-color) !important; 
+}
+
+.ql-toolbar .ql-formats {
+    margin-right: 10px !important; /* 組之間增加間距 */
+}
+
+.ql-toolbar .ql-picker, /* 下拉選單整體 */
+.ql-toolbar button {
+    padding: 5px !important; /* 統一內邊距 */
+    margin: 1px !important; /* 極小的外邊距避免重疊 */
+    border: 1px solid transparent !important; /* 預設透明邊框佔位 */
+    height: auto !important;
+    width: auto !important;
+    min-width: unset !important;
+    line-height: 1 !important; /* 確保高度由 padding 決定 */
+    vertical-align: middle; /* 垂直居中 */
+    transition: background-color 0.1s ease, border-color 0.1s ease;
+}
+
+/* 按鈕懸停效果 */
+.ql-toolbar button:hover,
+.ql-toolbar .ql-picker-label:hover {
+    background-color: var(--pico-form-element-background-color-hover) !important;
+    border: 1px solid var(--pico-form-element-border-color-hover) !important;
+}
+
+/* 按鈕選中狀態 (加粗、斜體等) */
+.ql-toolbar button.ql-active,
+.ql-toolbar .ql-picker-label.ql-active,
+.ql-toolbar .ql-picker.ql-expanded .ql-picker-label {
+    background-color: var(--pico-primary-background) !important;
+    border-color: var(--pico-primary-border) !important;
+    color: var(--pico-primary) !important;
+}
+
+.ql-toolbar button.ql-active svg,
+.ql-toolbar .ql-picker-label.ql-active svg,
+.ql-toolbar .ql-picker.ql-expanded .ql-picker-label svg {
+     stroke: var(--pico-primary) !important; /* 確保 SVG 顏色也變 */
+}
+
+/* 下拉選單標籤的樣式 */
+.ql-toolbar .ql-picker-label {
+     border: 1px solid var(--pico-form-element-border-color) !important; /* 保持邊框 */
+     padding: 5px 8px !important; /* 調整 padding */
+}
+
+/* 下拉選單選項 */
+.ql-picker-options {
+     padding: 0.5rem !important;
+     border: 1px solid var(--pico-form-element-focus-border-color) !important; /* 使用 focus 顏色 */
+     border-radius: var(--pico-border-radius) !important;
+     box-shadow: var(--pico-dropdown-box-shadow) !important;
+}
+
+.ql-picker-item {
+     padding: 0.3rem 0.6rem !important; /* 選項 padding */
+     border-radius: var(--pico-border-radius) !important;
+}
+
+/* Quill 自訂字型顯示 */
+.ql-font .ql-picker-item::before {
+    font-size: 0.9em !important; /* 調整顯示文字大小 */
+}
+
+/* 確保 SVG 圖示大小一致且居中 */
+.ql-toolbar button svg, 
+.ql-toolbar .ql-picker-label svg {
+    width: 1em !important; /* 使用 em 單位，使其隨字體縮放 */
+    height: 1em !important;
+    vertical-align: text-bottom; /* 嘗試不同的對齊方式 */
+}
+
+
+/* --- Modal 內表單按鈕 --- */
+dialog article footer {
+    display: flex;
+    justify-content: flex-end; /* 按鈕靠右 */
+    gap: 1rem; /* 按鈕間距 */
+}
+
+dialog article footer button {
+    min-width: 100px; /* 給按鈕一個最小寬度 */
+}
+
+/* --- 響應式調整 --- */
+@media (max-width: 992px) {
+    /* 中等螢幕 */
+    .grid-span-2 {
+        grid-column: span 1; 
+    }
+    .add-item-button-container {
+        grid-column: span 1;
+        text-align: left; /* 在非跨欄時靠左 */
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 768px) {
+    /* 平板與大型手機 */
+    body {
+        padding: 0.5rem;
+    }
+    .grid {
+      grid-template-columns: 1fr; 
+      gap: 0.75rem; /* 縮小 gap */
+    }
+    form.grid {
+         gap: 0.75rem; /* 表單內部也縮小 gap */
+    }
+    /* ... 其他 768px 樣式保持不變 ... */
+    .select-saved .action-buttons {
+         grid-template-columns: 1fr 1fr; 
+    }
+    article > header, article > footer {
+         padding: calc(var(--pico-block-spacing-vertical) * 0.8) calc(var(--pico-block-spacing-horizontal) * 0.8);
+    }
+    /* ... 其他 768px 樣式保持不變 ... */
+}
+
+@media (max-width: 576px) {
+    /* 小型手機 */
+    h1 { font-size: 1.75rem; }
+    h2 { font-size: 1.3rem; }
+    nav ul li { padding: 0.5rem; }
+    .select-saved .action-buttons {
+         grid-template-columns: 1fr; 
+    }
+    /* ... 其他 576px 樣式保持不變 ... */
+     dialog article footer {
+        flex-direction: column; /* Modal 按鈕堆疊 */
+        align-items: stretch; /* 按鈕佔滿寬度 */
+    }
+    dialog article footer button {
+         width: 100%;
+    }
+     /* ... 其他 576px 樣式保持不變 ... */
 } 
